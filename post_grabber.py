@@ -110,8 +110,8 @@ def _store_entry_object_helper(entry_object, post_type):
 
 # Check if post is already in database, return true if it is, false if not
 def _is_post_in_db(entry_object, post_type):
-    content_id = entry_object["_id"]
-    queried_post = db.submissions.find_one({"_id": content_id})
+    id_object = {"_id": entry_object["_id"]}
+    queried_post = db.submissions.find_one(id_object) if post_type == constants.DbEntry.REDDIT_SUBMISSION else db.comments.find_one(id_object)
     if post_type == constants.DbEntry.REDDIT_SUBMISSION and queried_post is None:
         return False
     elif post_type == constants.DbEntry.REDDIT_COMMENT and queried_post is None:

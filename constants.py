@@ -1,6 +1,10 @@
 from enum import Enum
 
 
+class IDENTIFIERS(Enum):
+    DISCORD_MENTION_PREFIX = "@"
+
+
 # Enumeration to store supported platforms
 class Platforms(Enum):
     REDDIT = "reddit"
@@ -18,8 +22,8 @@ class FilterActions(Enum):
     MONITOR = "monitor"
 
 
-# Enumeration to store filter types
-class FilterTypes(Enum):
+# Enumeration to store Reddit filter types
+class RedditFilterTypes(Enum):
     USERS = "users"
     SUBREDDITS = "subreddits"
     POSTS = "posts"

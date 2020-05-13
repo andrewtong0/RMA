@@ -13,13 +13,13 @@ class RedditEmbedConsts(Enum):
     username_link = "https://reddit.com/u/"
     regex_matchers = {
         "image": ["external\\-preview\\.redd\\.it", "preview\\.redd\\.it", "i\\.redd\\.it", "pbs\\.twimg\\.com"],
-        "twitch_clip": ["clips\\.twitch\\.tv"],
+        "twitch_clip": ["twitch\\.tv"],
         "youtube": ["youtube\\.com"],
         "twitter": ["twitter\\.com"]
     }
 
 
-def construct_reddit_message(post, content_filter, message_footer, message_prefix, message_suffix, roles_to_ping):
+def construct_reddit_message(post, triggered_matches, message_prefix, message_suffix):
     is_submission_post = post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
     post_content = post["content"]
     embed_title = post["title"] if is_submission_post else post_content
@@ -38,8 +38,17 @@ def construct_reddit_message(post, content_filter, message_footer, message_prefi
         timestamp=embed_timestamp
     )
 
-    filter_action = content_filter["action"]
-    filter_name = content_filter["name"]
+    # Generate content based on triggered filter matches
+    # Generate string of names of all matches hit
+    filter_name_matches = ""
+    # From the triggered_matches, we should only be operating on "flavour" information here (does not affect
+    #   functionality). Logical operations should go in the loop on triggered_matches in discord_bot
+    for match in triggered_matches:
+        filter_name_matches += " | " + match["filter"]["name"] + " "
+
+    # Footer message should contain concatenation of filters hit, and post ID
+    footer_content = filter_name_matches + " | Post ID: " + post["_id"]
+
     # embed_thumbnail_link = RedditEmbedConsts.icon.value  # Looks a bit ugly being so large and redundant
     # if filter_action == constants.FilterActions.REMOVE:
     #     embed_thumbnail_link = RedditEmbedConsts.reddit_removed_thumbnail.value
@@ -47,11 +56,13 @@ def construct_reddit_message(post, content_filter, message_footer, message_prefi
     #     embed_thumbnail_link = RedditEmbedConsts.reddit_monitor_thumbnail.value
     # embed.set_thumbnail(url=embed_thumbnail_link)
 
+    # Checking to see what kind of content is contained to determine how to display
     image_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["image"])
     twitch_clip_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["twitch_clip"])
     youtube_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["youtube"])
     twitter_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["twitter"])
 
+    # Followup message is used in cases that require non-embed to display preview
     followup_message = ""
     contains_image = re.match(image_match, post_content) is not None
     contains_twitch_clip = re.match(twitch_clip_match, post_content) is not None
@@ -64,18 +75,13 @@ def construct_reddit_message(post, content_filter, message_footer, message_prefi
         if "http" in embed_image_link and not contains_twitch_clip:
             embed.set_image(url=embed_image_link)
         # Twitch clip preview set
-        if contains_twitch_clip or contains_twitter:
+        if contains_twitch_clip or contains_twitter or contains_twitch_clip or contains_youtube_video or contains_twitter:
             followup_message = post_content
-
-    # Formatting for the separate message contains the content for preview
-    spacer = " | "
-    if contains_twitch_clip or contains_youtube_video or contains_twitter:
-        followup_message = message_footer + spacer + post_content
 
     embed.set_author(name=author_name,
                      url=embed_username_link,
                      icon_url="https://cdn.discordapp.com/embed/avatars/0.png")
-    embed.set_footer(text=filter_name,
+    embed.set_footer(text=footer_content,
                      icon_url=RedditEmbedConsts.icon.value)
 
     output = {
