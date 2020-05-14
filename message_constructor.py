@@ -22,8 +22,8 @@ class RedditEmbedConsts(Enum):
 def construct_reddit_message(post, triggered_matches, message_prefix, message_suffix):
     is_submission_post = post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
     post_content = post["content"]
-    embed_title = post["title"] if is_submission_post else post_content
-    embed_message_body_raw = post_content if is_submission_post else ""
+    embed_title = post["title"] if is_submission_post else post["author"]["username"] + " commented on a post"
+    embed_message_body_raw = post_content
     embed_message_body = message_prefix + "\n" + embed_message_body_raw + "\n" + message_suffix
     embed_timestamp = datetime.datetime.utcfromtimestamp(post["created_time"]["utc"])
 
@@ -31,7 +31,8 @@ def construct_reddit_message(post, triggered_matches, message_prefix, message_su
     embed_username_link = RedditEmbedConsts.username_link.value + author_name
 
     embed = discord.Embed(
-        title=embed_title,
+        title=(embed_title[:constants.Restrictions.TITLE_CHAR_MAX.value] + "...")
+        if len(embed_title) > constants.Restrictions.TITLE_CHAR_MAX.value else embed_title,
         colour=discord.Colour(RedditEmbedConsts.colour.value),
         url=post["permalink"],
         description=embed_message_body,

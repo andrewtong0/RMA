@@ -29,6 +29,10 @@ class RedditFilterTypes(Enum):
     POSTS = "posts"
 
 
+class Restrictions(Enum):
+    TITLE_CHAR_MAX = 252
+
+
 # Currently only works with 1 word strings (e.g. links) with whitespace checks
 def create_regex_string(regex_matchers):
     return ".*((" + ")|(".join(regex_matchers) + ")).*"
