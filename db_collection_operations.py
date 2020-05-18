@@ -19,6 +19,7 @@ def attempt_add_or_remove_match(filter_name, new_match, operation_type):
     queried_matches = queried_filter["matches"]
 
     # If filter is user filter, should add/remove user tag (also has duplicate checking)
+    # TODO: attempt_add_or_remove_user_tag currently returns non-null/null - refactor to leveerage or potentially remove those returns on attempt_add_or_remove_user_tag
     if queried_filter is not None and queried_filter["type"] == constants.RedditFilterTypes.USERS.value:
         attempt_add_or_remove_user_tag(new_match, filter_name, operation_type)
 
@@ -32,9 +33,18 @@ def attempt_add_or_remove_match(filter_name, new_match, operation_type):
         return None
 
 
+def get_collection(collection):
+    return db[collection].find()
+
+
 # Attempts to get matches for a specific filter
 def get_matches(filter_name):
     return db.filters.find_one({"name": filter_name})
+
+
+# Returns user data
+def get_user_data(username):
+    return db.users.find_one({"username": username})
 
 
 # Function used to map filters to just their names
@@ -51,11 +61,12 @@ def get_filters():
 def generate_user_report(username):
     add_or_update_user(username)
     user_posts = get_user_posts(username)
-    embed = wrangler.construct_user_report_embed(user_posts, username)
+    user_data = get_user_data(username)
+    embed = wrangler.construct_user_report_embed(user_posts, username, user_data)
     return embed
 
 
-# Grabs all posts (submissions + comments) of a user
+# Grabs all posts (submissions + comments) of a user for user report
 def get_user_posts(username):
     user_posts = []
     submissions = db.submissions.find({"author.username": username})
@@ -64,8 +75,7 @@ def get_user_posts(username):
     comments = db.comments.find({"author.username": username})
     for comment in comments:
         user_posts.append(comment)
-    user_posts = praw_operations.sort_by_created_time(user_posts)
-
+    user_posts = praw_operations.sort_by_created_time(user_posts, True)
     return user_posts
 
 
@@ -106,20 +116,18 @@ def _add_or_update_user_db(username, userdata):
 # Attempts to add user tag, returns True on success, false on failure
 def attempt_add_or_remove_user_tag(username, role_tag, operation_type):
     add_or_update_user(username)
-    user_tags = _get_user_tags(username)
-    if role_tag not in user_tags:
-        _add_or_remove_user_tag(username, role_tag, operation_type)
-        return True
-    else:
-        return False
+    return _add_or_remove_user_tag(username, role_tag, operation_type)
 
 
 # Adds ore removes tag on user
 def _add_or_remove_user_tag(username, role_tag, operation_type):
-    if operation_type == constants.RedditFilterOperationTypes.ADD.value:
+    user_tags = _get_user_tags(username)
+    if operation_type == constants.RedditFilterOperationTypes.ADD.value and role_tag not in user_tags:
         db.users.update({"username": username}, {"$push": {"tags": role_tag}})
-    elif operation_type == constants.RedditFilterOperationTypes.REMOVE.value:
+    elif operation_type == constants.RedditFilterOperationTypes.REMOVE.value and role_tag in user_tags:
         db.users.update({"username": username}, {"$pull": {"tags": role_tag}})
+    else:
+        return None
 
 
 # Gets list of user tags

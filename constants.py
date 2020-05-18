@@ -40,6 +40,11 @@ class RedditFilterOperationTypes(Enum):
     REMOVE = "remove"
 
 
+class RedditFilterActions(Enum):
+    SHADOWBAN = "Shadowban"
+    WATCHLIST = "Watchlist"
+
+
 class Restrictions(Enum):
     TITLE_CHAR_MAX = 255
     EMBED_BODY_CHAR_MAX = 5999
@@ -48,7 +53,7 @@ class Restrictions(Enum):
 class StringConstants(Enum):
     STRING_POST = "Post"
     STRING_COMMENT = "Comment"
-    SUBMISSION_TIMESTAMP_TITLE = "Submission Timestamp"
+    TIMESTAMP_TITLE = "Timestamp"
     STRING_TRUNCATE = "..."
 
 

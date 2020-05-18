@@ -107,14 +107,24 @@ def construct_reddit_message(post, triggered_matches, message_prefix, message_su
     return output
 
 
-def construct_user_report_embed(user_posts, username):
+def construct_user_report_embed(user_posts, username, user_data):
     user_link = generate_reddit_user_link(username)
+    tags = user_data["tags"]
+    mod_comments = user_data["mod_comments"]
+    user_karma = user_data["comment_karma"] + user_data["link_karma"]
+
+    tags_string = ""
+    for tag in tags:
+        tags_string += tag + ", "
+    tags_string = tags_string[:-2]
+    if tags_string == "":
+        tags_string = "(None)"
 
     embed = discord.Embed(
         title=("User Report for {}".format(username)),
         colour=discord.Colour(RedditEmbedConsts.colour.value),
         url=user_link,
-        description="User report showing {} posts stored in our database.".format(len(user_posts))
+        description=("Karma: {} / Tags: {}".format(str(user_karma), tags_string))
     )
 
     for post in user_posts:
@@ -130,9 +140,17 @@ def construct_user_report_embed(user_posts, username):
             inline=True
         )
         embed.add_field(
-            name=constants.StringConstants.SUBMISSION_TIMESTAMP_TITLE.value,
+            name=constants.StringConstants.TIMESTAMP_TITLE.value,
             value=str(post_utc_to_timestamp(post)),
             inline=True
+        )
+
+    for comment in mod_comments:
+        mod_comment_author = comment["author"]["name"]
+        mod_comment_timestamp = comment["timestamp"]
+        embed.add_field(
+            name="Moderator Comment / Added by @{} / {}".format(mod_comment_author, mod_comment_timestamp),
+            value=comment["comment"]
         )
 
     return embed

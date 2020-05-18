@@ -3,8 +3,6 @@ import os
 import asyncio
 import discord
 from discord.ext import commands
-import re
-import datetime
 
 # File imports
 import constants
@@ -28,7 +26,7 @@ class BotConsts(Enum):
 
 # Initializes filters on startup by grabbing filters
 def get_filters():
-    retrieved_filters = filters.get_all_filters()
+    retrieved_filters = db_collection_operations.get_collection("filters")
     output_filters = []
     for f in retrieved_filters:
         output_filters.append(f)
@@ -50,29 +48,6 @@ def find_role(roles, roles_to_find):
 
 client = commands.Bot(command_prefix=user_preferences.Settings.BOT_PREFIX.value)
 db_filters = get_filters()
-
-
-# Checks a post against all filters, returns list of filters triggered to generate message
-def post_triggers_filter(post, post_filters, platform):
-    # Stores list of triggered filters and the content caught by the filters
-    triggered_matches = []
-    for post_filter in post_filters:
-        if platform == constants.Platforms.REDDIT.value and post_filter["platform"] == constants.Platforms.REDDIT.value:
-            if post_filter["type"] == constants.RedditFilterTypes.USERS.value and post["author"]["username"] in post_filter["matches"]:
-                triggered_matches.append({"filter": post_filter, "flagged_content": post["author"]["username"], "action": post_filter["action"]})
-            elif post_filter["type"] == constants.RedditFilterTypes.POSTS.value:
-                for regex_phrase in post_filter["matches"]:
-                    # Submissions also have titles, so we should check the title in addition to the content of the post
-                    if post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value:
-                        if re.match(regex_phrase, post["title"]):
-                            triggered_matches.append({"filter": post_filter, "flagged_content": regex_phrase,
-                                                      "action": post_filter["action"]})
-                    if re.match(regex_phrase, post["content"]):
-                        triggered_matches.append({"filter": post_filter, "flagged_content": regex_phrase,
-                                                  "action": post_filter["action"]})
-            # TODO: Implement this once subreddit is stored or we figure out how to do subreddit blacklist
-            # elif post_filter.type == constants.RedditFilterTypes.SUBREDDITS.value and post.subreddit in post_filter.matches:
-    return triggered_matches
 
 # =====================
 # GENERIC BOT FUNCTIONS
@@ -111,7 +86,7 @@ async def send_message(platform, reddit_object, triggered_matches, roles_to_ping
     channel = client.get_channel(user_preferences.Channels.REDDIT_MAIN_CHANNEL.value)
     if roles_to_ping:  # TODO: Also take into account the platform for pings
         found_roles = find_role(client.guilds[0].roles, roles_to_ping)  # TODO: Refactor out [0] since if the bot is in multiple servers, this may not reference the right server
-        # Pings do not work in embeds, so they must be done as a separate, not embed message
+        # Pings do not work in embeds, so they must be done as a separate, non-embed message
         if found_roles:
             ping_string = ""
             for found_role in found_roles:
@@ -126,26 +101,34 @@ async def send_message(platform, reddit_object, triggered_matches, roles_to_ping
             await channel.send(content=followup_message)
 
 
+async def send_message_and_potentially_ping(post_and_matches):
+    roles_to_ping = []
+    post = post_and_matches["post"]
+    matches = post_and_matches["matches"]
+    for match in matches:
+        for filter_specific_role in match["filter"]["roles_to_ping"]:
+            roles_to_ping.append(filter_specific_role)
+    await send_message(constants.Platforms.REDDIT.value, post, matches, roles_to_ping)
+
+
+# We take action on all posts, regardless if they have matches (if there are no matches, we only send a message)
+async def actions_on_posts(post_and_matches):
+    priority_action = praw_operations.determine_priority_action(post_and_matches)
+    # TODO: Integrate priority action into ping message so we know what action is taken
+    await send_message_and_potentially_ping(post_and_matches)
+
+
 # Gets all new Reddit posts and stores them in the database
 async def get_new_reddit_posts(num_posts):
     new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_SUBMISSION)
     new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT)
-    new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments)
-    print("NEW POSTS")
-    print(new_posts)
-    for post in new_posts:
-        # TODO: Platform needs to be changed to pull from the post/comment after adding to the submissions/comments in database
-        triggered_matches = post_triggers_filter(post, db_filters, constants.Platforms.REDDIT.value)
-        roles_to_ping = []
-
-        # All triggered match "logical" operations (things that affect functionality beyond flavour text) should
-        #   be done within this loop over triggered_matches, NOT the one in wrangler.py
-        for match in triggered_matches:
-            for filter_specific_role in match["filter"]["roles_to_ping"]:
-                # TODO: Determine if there are multiple matches, what the most extreme match is
-                roles_to_ping.append(filter_specific_role)
-
-        await send_message(constants.Platforms.REDDIT.value, post, triggered_matches, roles_to_ping)
+    new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
+    if new_posts:
+        print(str(len(new_posts)) + " new posts found.")
+        print(new_posts)
+    posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
+    for post_and_matches in posts_and_matches:
+        await actions_on_posts(post_and_matches)
 
 
 # ============
@@ -207,7 +190,6 @@ async def get_filters(context):
         await context.send("No filters found.")
 
 
-# TODO: Invert posts from user_report (newest at top)
 @client.command()
 async def user_report(context, username):
     embed = db_collection_operations.generate_user_report(username)

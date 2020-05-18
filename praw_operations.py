@@ -141,7 +141,7 @@ def get_and_store_unstored(post_chunk_size, post_type):
     while True:
         posts = _get_posts(post_chunk_size * num_queries, post_type)
         entry_objects = [_construct_entry_object(post, post_type) for post in posts[(post_chunk_size * -1):]]
-        sorted_entry_objects = sort_by_created_time(entry_objects)
+        sorted_entry_objects = sort_by_created_time(entry_objects, False)
         were_all_already_stored = _is_post_in_db(sorted_entry_objects[-1], post_type)
         if were_all_already_stored:
             break
@@ -152,11 +152,23 @@ def get_and_store_unstored(post_chunk_size, post_type):
     return new_posts
 
 
-# Takes in list of posts and sorts by date
-def sort_by_created_time(post_list):
-    output_list = sorted(post_list, key=lambda post: post["created_time"]["utc"], reverse=False)
+# Takes in list of posts and sorts by date, sort order is determined by is_reversed
+def sort_by_created_time(post_list, is_reversed):
+    output_list = sorted(post_list, key=lambda post: post["created_time"]["utc"], reverse=is_reversed)
     return output_list
 
 
 def get_redditor(username):
     return reddit.redditor(username)
+
+
+def determine_priority_action(post_and_matches):
+    priority_action = ""
+    matches = post_and_matches["matches"]
+    for match in matches:
+        match_action = match["action"]
+        if match_action == constants.FilterActions.REMOVE.value:
+            priority_action = constants.RedditFilterActions.SHADOWBAN.value
+        elif match_action == constants.FilterActions.MONITOR.value and priority_action != constants.RedditFilterActions.SHADOWBAN.value:
+            priority_action = constants.RedditFilterActions.WATCHLIST.value
+    return priority_action
