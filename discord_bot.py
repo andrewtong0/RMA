@@ -8,22 +8,22 @@ import datetime
 
 # File imports
 import constants
-import post_grabber
+import praw_operations
 import filters
-import message_constructor
+import wrangler
 import user_preferences
+import db_collection_operations
 
 # This file should only be used for Discord bot management
 
+# ================
+# FUNCTIONS/CONSTS
+# ================
+
+
 class BotConsts(Enum):
     BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
-    POLL_TIMER = 10
-
-client = discord.Client()
-
-# =================
-# GENERIC FUNCTIONS
-# =================
+    POLL_TIMER = 300
 
 
 # Initializes filters on startup by grabbing filters
@@ -42,6 +42,14 @@ def find_role(roles, roles_to_find):
         found_role = next(role for role in roles if role_to_find == role.name)
         found_roles.append(found_role)
     return found_roles
+
+
+# ==============
+# INITIALIZATION
+# ==============
+
+client = commands.Bot(command_prefix=user_preferences.Settings.BOT_PREFIX.value)
+db_filters = get_filters()
 
 
 # Checks a post against all filters, returns list of filters triggered to generate message
@@ -95,7 +103,7 @@ async def send_message(platform, reddit_object, triggered_matches, roles_to_ping
     embed = {}
     followup_message = ""  # Used if there are differences in schema where something else needs to be added
     if platform == constants.Platforms.REDDIT.value:
-        message_object = message_constructor.construct_reddit_message(
+        message_object = wrangler.construct_reddit_message(
             reddit_object, triggered_matches, message_prefix, message_suffix
         )
         embed = message_object["embed"]
@@ -113,14 +121,16 @@ async def send_message(platform, reddit_object, triggered_matches, roles_to_ping
         if followup_message:
             await channel.send(content=followup_message)
     else:
-        await channel.send(embed=embed, content=followup_message)
+        await channel.send(embed=embed)
+        if followup_message:
+            await channel.send(content=followup_message)
 
 
 # Gets all new Reddit posts and stores them in the database
 async def get_new_reddit_posts(num_posts):
-    new_submissions = post_grabber.get_and_store_posts(num_posts, constants.DbEntry.REDDIT_SUBMISSION)
-    new_comments = post_grabber.get_and_store_posts(num_posts, constants.DbEntry.REDDIT_COMMENT)
-    new_posts = post_grabber.sort_by_created_time(new_submissions + new_comments)
+    new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_SUBMISSION)
+    new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT)
+    new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments)
     print("NEW POSTS")
     print(new_posts)
     for post in new_posts:
@@ -129,7 +139,7 @@ async def get_new_reddit_posts(num_posts):
         roles_to_ping = []
 
         # All triggered match "logical" operations (things that affect functionality beyond flavour text) should
-        #   be done within this loop over triggered_matches, NOT the one in message_constructor.py
+        #   be done within this loop over triggered_matches, NOT the one in wrangler.py
         for match in triggered_matches:
             for filter_specific_role in match["filter"]["roles_to_ping"]:
                 # TODO: Determine if there are multiple matches, what the most extreme match is
@@ -137,18 +147,87 @@ async def get_new_reddit_posts(num_posts):
 
         await send_message(constants.Platforms.REDDIT.value, post, triggered_matches, roles_to_ping)
 
+
 # ============
 # BOT COMMANDS
 # ============
+# TODO: Handle invalid commands gracefully
 
 # Add match to filter
-# @client.command()
-# async def add_match_to_filter(match):
+@client.command()
+async def add_match(context, filter_name, new_match):
+    add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditFilterOperationTypes.ADD.value)
+    if add_result:
+        await context.send("{} successfully added to {}".format(new_match, filter_name))
+    else:
+        await context.send("There was an issue adding {} to {}. Verify the specified filter name and ensure the match has not already been added.".format(filter_name, new_match))
 
+
+@client.command()
+async def bulk_add_match(context, filter_name, *matches):
+    for match in matches:
+        match = match.replace(",", "")
+        await add_match(context, filter_name, match)
+    await context.send("Bulk match adding complete. ")
+
+
+@client.command()
+async def remove_match(context, filter_name, match_to_remove):
+    remove_result = db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditFilterOperationTypes.REMOVE.value)
+    if remove_result:
+        await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
+    else:
+        await context.send("There was an issue removing {} from {}. Verify the specified filter name and ensure the match exists in the list of matches.".format(filter_name, match_to_remove))
+
+
+@client.command()
+async def get_matches(context, filter_name):
+    matches = db_collection_operations.get_matches(filter_name)
+    if matches:
+        matches = matches["matches"]
+        matches_output = ""
+        for match in matches:
+            matches_output += match + ", "
+        matches_output = matches_output[:-2]  # Remove extra comma and space after last element
+        await context.send("{}: {}".format(filter_name, matches_output))
+    else:
+        await context.send("There was an issue finding the matches for {}. Verify the specified filter.".format(filter_name))
+
+
+@client.command()
+async def get_filters(context):
+    filter_names = db_collection_operations.get_filters()
+    if filter_names:
+        filter_names_string = ""
+        for filter_name in filter_names:
+            filter_names_string += filter_name + ", "
+        filter_names_string = filter_names_string[:-2]
+        await context.send("Filters: {}".format(filter_names_string))
+    else:
+        await context.send("No filters found.")
+
+
+# TODO: Invert posts from user_report (newest at top)
+@client.command()
+async def user_report(context, username):
+    embed = db_collection_operations.generate_user_report(username)
+    await context.send(embed=embed)
+
+
+@client.command()
+async def add_user_comment(context, username, *comment):
+    # Since comment string is separated by spaces, Discord will recognize each word as a separate param
+    comment_string = ""
+    for word in comment:
+        comment_string += word + " "
+    comment_string = comment_string[:-1]  # Remove extra space at end
+    comment_added = db_collection_operations.add_user_comment(context, username, comment_string)
+    if comment_added:
+        await context.send("Moderator comment added to {}.".format(username))
+    else:
+        await context.send("There was an issue adding your comment.")
 
 
 # Initialize and run Discord bot
-
-db_filters = get_filters()
 client.loop.create_task(poll_new_posts())
 client.run(os.environ.get("DISCORD_BOT_TOKEN"))

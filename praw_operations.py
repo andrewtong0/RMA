@@ -50,7 +50,10 @@ def _construct_entry_object(post, post_type):
             "title": post.title,
             "author": {
                 "username": post.author.name,
-                "uuid": post.author.id
+                "uuid": post.author.id,
+                "author_icon": post.author.icon_img,
+                "comment_karma": post.author.comment_karma,
+                "post_karma": post.author.link_karma
             },
             "created_time": {
                 "timestamp": timestamp,
@@ -76,7 +79,10 @@ def _construct_entry_object(post, post_type):
             "post_type": post_type.value,
             "author": {
                 "username": post.author.name,
-                "uuid": post.author.id
+                "uuid": post.author.id,
+                "author_icon": post.author.icon_img,
+                "comment_karma": post.author.comment_karma,
+                "post_karma": post.author.link_karma
             },
             "created_time": {
                 "timestamp": timestamp,
@@ -150,3 +156,7 @@ def get_and_store_unstored(post_chunk_size, post_type):
 def sort_by_created_time(post_list):
     output_list = sorted(post_list, key=lambda post: post["created_time"]["utc"], reverse=False)
     return output_list
+
+
+def get_redditor(username):
+    return reddit.redditor(username)

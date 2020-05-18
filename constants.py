@@ -29,8 +29,27 @@ class RedditFilterTypes(Enum):
     POSTS = "posts"
 
 
+class RedditUserUpsertStatus(Enum):
+    SUCCESS = "success"
+    SUSPENDED = "suspended"
+    MISSING = "missing"
+
+
+class RedditFilterOperationTypes(Enum):
+    ADD = "add"
+    REMOVE = "remove"
+
+
 class Restrictions(Enum):
-    TITLE_CHAR_MAX = 252
+    TITLE_CHAR_MAX = 255
+    EMBED_BODY_CHAR_MAX = 5999
+
+
+class StringConstants(Enum):
+    STRING_POST = "Post"
+    STRING_COMMENT = "Comment"
+    SUBMISSION_TIMESTAMP_TITLE = "Submission Timestamp"
+    STRING_TRUNCATE = "..."
 
 
 # Currently only works with 1 word strings (e.g. links) with whitespace checks

@@ -1,7 +1,6 @@
 import os
 import re
 from pymongo import MongoClient
-from enum import Enum
 import constants
 
 # Database setup
@@ -70,7 +69,7 @@ def _find_reddit_matches(reddit_filter, posts):
                 matches.append({"post": post, "reason": reddit_filter["name"], "info": infractions})
                 matched_posts.append(post)
     matches_and_posts = {"matches": matches, "posts": matched_posts}
-    return matches
+    return matches_and_posts
 
 
 def _filter_reddit_regex(reddit_filter, post):
@@ -107,6 +106,3 @@ def apply_all_filters(filters, posts):
         if content_filter["platform"] == "reddit":
             matches_and_posts = _find_reddit_matches(content_filter, posts)
     return matches_and_posts
-
-
-# Need a file in discord that adds/removes shadowbans or filters on the database

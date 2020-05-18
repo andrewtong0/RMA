@@ -19,19 +19,33 @@ class RedditEmbedConsts(Enum):
     }
 
 
+def generate_reddit_user_link(username):
+    return RedditEmbedConsts.username_link.value + username
+
+
+def is_post_submission(post):
+    return post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+
+
+def post_utc_to_timestamp(post):
+    return datetime.datetime.utcfromtimestamp(post["created_time"]["utc"])
+
+
 def construct_reddit_message(post, triggered_matches, message_prefix, message_suffix):
-    is_submission_post = post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+    string_truncate = constants.StringConstants.STRING_TRUNCATE.value
+    is_submission_post = is_post_submission(post)
     post_content = post["content"]
     embed_title = post["title"] if is_submission_post else post["author"]["username"] + " commented on a post"
-    embed_message_body_raw = post_content
+    embed_message_body_raw = post_content[:constants.Restrictions.EMBED_BODY_CHAR_MAX.value - len(string_truncate) - len(message_prefix) - len(message_suffix)] + string_truncate if len(post_content) > constants.Restrictions.EMBED_BODY_CHAR_MAX.value else post_content
     embed_message_body = message_prefix + "\n" + embed_message_body_raw + "\n" + message_suffix
-    embed_timestamp = datetime.datetime.utcfromtimestamp(post["created_time"]["utc"])
+    embed_timestamp = post_utc_to_timestamp(post)
 
     author_name = post["author"]["username"]
-    embed_username_link = RedditEmbedConsts.username_link.value + author_name
+    embed_username_link = generate_reddit_user_link(author_name)
+    author_icon = post["author"]["author_icon"]
 
     embed = discord.Embed(
-        title=(embed_title[:constants.Restrictions.TITLE_CHAR_MAX.value] + "...")
+        title=(embed_title[:constants.Restrictions.TITLE_CHAR_MAX.value - len(string_truncate)] + "...")
         if len(embed_title) > constants.Restrictions.TITLE_CHAR_MAX.value else embed_title,
         colour=discord.Colour(RedditEmbedConsts.colour.value),
         url=post["permalink"],
@@ -81,7 +95,7 @@ def construct_reddit_message(post, triggered_matches, message_prefix, message_su
 
     embed.set_author(name=author_name,
                      url=embed_username_link,
-                     icon_url="https://cdn.discordapp.com/embed/avatars/0.png")
+                     icon_url=author_icon)
     embed.set_footer(text=footer_content,
                      icon_url=RedditEmbedConsts.icon.value)
 
@@ -91,3 +105,34 @@ def construct_reddit_message(post, triggered_matches, message_prefix, message_su
     }
 
     return output
+
+
+def construct_user_report_embed(user_posts, username):
+    user_link = generate_reddit_user_link(username)
+
+    embed = discord.Embed(
+        title=("User Report for {}".format(username)),
+        colour=discord.Colour(RedditEmbedConsts.colour.value),
+        url=user_link,
+        description="User report showing {} posts stored in our database.".format(len(user_posts))
+    )
+
+    for post in user_posts:
+        is_submission_post = is_post_submission(post)
+        embed.add_field(
+            name=constants.StringConstants.STRING_POST.value if is_submission_post else constants.StringConstants.STRING_COMMENT.value,
+            value=post["title"] if is_submission_post else post["content"],
+            inline=True
+        )
+        embed.add_field(
+            name="Permalink",
+            value=post["permalink"],
+            inline=True
+        )
+        embed.add_field(
+            name=constants.StringConstants.SUBMISSION_TIMESTAMP_TITLE.value,
+            value=str(post_utc_to_timestamp(post)),
+            inline=True
+        )
+
+    return embed
