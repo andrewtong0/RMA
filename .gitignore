@@ -1,5 +1,6 @@
 # Project Specific Files
 user_preferences.py
+environment_variables.py
 dbtest.py
 
 # Byte-compiled / optimized / DLL files

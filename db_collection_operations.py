@@ -1,12 +1,11 @@
 from pymongo import MongoClient
-import os
 import wrangler
 import praw_operations
 import constants
-
+import environment_variables
 
 # Database setup
-client = MongoClient(str(os.environ.get("DATABASE_URI")))
+client = MongoClient(environment_variables.DATABASE_URI)
 db = client.reddit
 
 
@@ -59,11 +58,14 @@ def get_filters():
 
 # Generates user report embed based on user posts from username
 def generate_user_report(username):
-    add_or_update_user(username)
-    user_posts = get_user_posts(username)
-    user_data = get_user_data(username)
-    embed = wrangler.construct_user_report_embed(user_posts, username, user_data)
-    return embed
+    user_status = add_or_update_user(username)
+    if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
+        user_posts = get_user_posts(username)
+        user_data = get_user_data(username)
+        embed = wrangler.construct_user_report_embed(user_posts, username, user_data)
+        return embed
+    else:
+        return wrangler.construct_user_not_found_embed(username)
 
 
 # Grabs all posts (submissions + comments) of a user for user report
@@ -82,15 +84,16 @@ def get_user_posts(username):
 # Upserts user information to database, runs checks to ensure user exists/not shadowbanned
 def add_or_update_user(username):
     userdata = praw_operations.get_redditor(username)
-    # Shadowbanned and non-existent accounts return no attributes
-    if len(userdata.__dict__) > 0:
-        if hasattr(userdata, "is_suspended"):
-            return constants.RedditUserUpsertStatus.SUSPENDED.value
-        else:
+    # Shadowbanned and non-existent accounts error out
+    # TODO: Try to find exploitable variable rather than using try/catch
+    try:
+        if len(userdata.__dict__) > 0:
             _add_or_update_user_db(username, userdata)
             return constants.RedditUserUpsertStatus.SUCCESS.value
-    else:
-        return constants.RedditUserUpsertStatus.MISSING.value
+        else:
+            return constants.RedditUserUpsertStatus.MISSING.value
+    except:
+        return constants.RedditUserUpsertStatus.SUSPENDED.value
 
 
 # If user already in database, only updates, if not already in database, instantiates empty lists for mod comments
@@ -115,7 +118,9 @@ def _add_or_update_user_db(username, userdata):
 
 # Attempts to add user tag, returns True on success, false on failure
 def attempt_add_or_remove_user_tag(username, role_tag, operation_type):
-    add_or_update_user(username)
+    user_status = add_or_update_user(username)
+    if user_status != constants.RedditUserUpsertStatus.SUCCESS.value:
+        operation_type = constants.RedditFilterOperationTypes.ERROR.value
     return _add_or_remove_user_tag(username, role_tag, operation_type)
 
 
@@ -126,6 +131,7 @@ def _add_or_remove_user_tag(username, role_tag, operation_type):
         db.users.update({"username": username}, {"$push": {"tags": role_tag}})
     elif operation_type == constants.RedditFilterOperationTypes.REMOVE.value and role_tag in user_tags:
         db.users.update({"username": username}, {"$pull": {"tags": role_tag}})
+    # This is hit in error case (RedditFilterOperationTypes.ERROR)
     else:
         return None
 
@@ -138,14 +144,17 @@ def _get_user_tags(username):
 
 # Adds a user comment by upserting user (to ensure they exist) and adding comment
 def add_user_comment(context, username, comment):
-    add_or_update_user(username)
-    initiating_message = context.message
-    comment_object = {
-        "comment": comment,
-        "timestamp": initiating_message.created_at,
-        "author": {
-            "uuid": initiating_message.author.id,
-            "name": initiating_message.author.name
+    user_status = add_or_update_user(username)
+    if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
+        initiating_message = context.message
+        comment_object = {
+            "comment": comment,
+            "timestamp": initiating_message.created_at,
+            "author": {
+                "uuid": initiating_message.author.id,
+                "name": initiating_message.author.name
+            }
         }
-    }
-    return db.users.find_one_and_update({"username": username}, {"$push": {"mod_comments": comment_object}})
+        return db.users.find_one_and_update({"username": username}, {"$push": {"mod_comments": comment_object}})
+    else:
+        return None

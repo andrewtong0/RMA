@@ -38,6 +38,7 @@ class RedditUserUpsertStatus(Enum):
 class RedditFilterOperationTypes(Enum):
     ADD = "add"
     REMOVE = "remove"
+    ERROR = "error"
 
 
 class RedditFilterActions(Enum):
@@ -47,7 +48,7 @@ class RedditFilterActions(Enum):
 
 class Restrictions(Enum):
     TITLE_CHAR_MAX = 255
-    EMBED_BODY_CHAR_MAX = 5999
+    EMBED_BODY_CHAR_MAX = 1990
 
 
 class StringConstants(Enum):
@@ -55,6 +56,13 @@ class StringConstants(Enum):
     STRING_COMMENT = "Comment"
     TIMESTAMP_TITLE = "Timestamp"
     STRING_TRUNCATE = "..."
+
+
+class RedditDiscordChannelTypes(Enum):
+    RD_CHANNELTYPE_ALL = "rd_all"
+    RD_CHANNELTYPE_POSTS = "rd_posts"
+    RD_CHANNELTYPE_COMMENTS = "rd_comments"
+    RD_CHANNELTYPE_PINGS = "rd_pings"
 
 
 # Currently only works with 1 word strings (e.g. links) with whitespace checks

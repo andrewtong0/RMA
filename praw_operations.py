@@ -1,9 +1,8 @@
 import praw
-import os
 from pymongo import MongoClient
-from enum import Enum
 from datetime import datetime
 import constants
+import environment_variables
 
 
 # This file provides two public functions, get_and_store_posts and get_and_store_unstored to query for new posts with
@@ -11,15 +10,15 @@ import constants
 
 
 # PRAW setup
-reddit = praw.Reddit(client_id=str(os.environ.get("REDDIT_CLIENT_ID")),
-                     client_secret=str(os.environ.get("REDDIT_CLIENT_SECRET")),
-                     user_agent=str(os.environ.get("REDDIT_USER_AGENT")))
+reddit = praw.Reddit(client_id=str(environment_variables.REDDIT_CLIENT_ID),
+                     client_secret=str(environment_variables.REDDIT_CLIENT_SECRET),
+                     user_agent=str(environment_variables.REDDIT_USER_AGENT))
 reddit.read_only = True
-subreddit = reddit.subreddit(str(os.environ.get("SUBREDDIT")))
+subreddit = reddit.subreddit(environment_variables.SUBREDDIT)
 
 
 # Database setup
-client = MongoClient(str(os.environ.get("DATABASE_URI")))
+client = MongoClient(environment_variables.DATABASE_URI)
 db = client.reddit
 
 
@@ -37,63 +36,66 @@ def _construct_entry_object(post, post_type):
     timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
     permalink_domain = "https://reddit.com"
     content = ""
-    if post_type == constants.DbEntry.REDDIT_SUBMISSION:
-        if post.selftext:
-            content = post.selftext
-        else:
-            # content = post.preview["images"][0]["source"]["url"] / Check if the preview is actually a mirror and if so then have to switch between this and the url
-            content = post.url
+    if post.author:
+        if post_type == constants.DbEntry.REDDIT_SUBMISSION:
+            if post.selftext:
+                content = post.selftext
+            else:
+                # content = post.preview["images"][0]["source"]["url"] / Check if the preview is actually a mirror and if so then have to switch between this and the url
+                content = post.url
 
-        submission_entry = {
-            "_id": post.id,
-            "post_type": post_type.value,
-            "title": post.title,
-            "author": {
-                "username": post.author.name,
-                "uuid": post.author.id,
-                "author_icon": post.author.icon_img,
-                "comment_karma": post.author.comment_karma,
-                "post_karma": post.author.link_karma
-            },
-            "created_time": {
-                "timestamp": timestamp,
-                "utc": utc
-            },
-            "content": content,
-            "permalink": permalink_domain + post.permalink,
-            # TODO: Check if content will always be more important than this - if you have image post w/ text, will content = the text and thumbnail = the image?
-            "thumbnail": post.thumbnail
-        }
-        return submission_entry
-    elif post_type == constants.DbEntry.REDDIT_COMMENT:
-        # Substring is taken since IDs are prefixed with t3_ or t1_ depending on depth, but is irrelevant to us
-        # and makes queries harder
-        submission_id = post.link_id[3:]
-        comment_parent_id = post.parent_id[3:]
-        # Check if the comment is a top level comment
-        if submission_id == comment_parent_id:
-            # If comment is top level, signify with --- for quick reading
-            comment_parent_id = "---"
-        submission_entry = {
-            "_id": post.id,
-            "post_type": post_type.value,
-            "author": {
-                "username": post.author.name,
-                "uuid": post.author.id,
-                "author_icon": post.author.icon_img,
-                "comment_karma": post.author.comment_karma,
-                "post_karma": post.author.link_karma
-            },
-            "created_time": {
-                "timestamp": timestamp,
-                "utc": utc
-            },
-            "content": post.body,
-            "permalink": permalink_domain + post.permalink,
-            "submission_id": submission_id,
-            "comment_parent_id": comment_parent_id
-        }
-        return submission_entry
+            submission_entry = {
+                "_id": post.id,
+                "post_type": post_type.value,
+                "title": post.title,
+                "author": {
+                    "username": post.author.name,
+                    "uuid": post.author.id,
+                    "author_icon": post.author.icon_img,
+                    "comment_karma": post.author.comment_karma,
+                    "post_karma": post.author.link_karma
+                },
+                "created_time": {
+                    "timestamp": timestamp,
+                    "utc": utc
+                },
+                "content": content,
+                "permalink": permalink_domain + post.permalink,
+                # TODO: Check if content will always be more important than this - if you have image post w/ text, will content = the text and thumbnail = the image?
+                "thumbnail": post.thumbnail
+            }
+            return submission_entry
+        elif post_type == constants.DbEntry.REDDIT_COMMENT:
+            # Substring is taken since IDs are prefixed with t3_ or t1_ depending on depth, but is irrelevant to us
+            # and makes queries harder
+            submission_id = post.link_id[3:]
+            comment_parent_id = post.parent_id[3:]
+            # Check if the comment is a top level comment
+            if submission_id == comment_parent_id:
+                # If comment is top level, signify with --- for quick reading
+                comment_parent_id = "---"
+            submission_entry = {
+                "_id": post.id,
+                "post_type": post_type.value,
+                "author": {
+                    "username": post.author.name,
+                    "uuid": post.author.id,
+                    "author_icon": post.author.icon_img,
+                    "comment_karma": post.author.comment_karma,
+                    "post_karma": post.author.link_karma
+                },
+                "created_time": {
+                    "timestamp": timestamp,
+                    "utc": utc
+                },
+                "content": post.body,
+                "permalink": permalink_domain + post.permalink,
+                "submission_id": submission_id,
+                "comment_parent_id": comment_parent_id
+            }
+            return submission_entry
+    else:
+        return None
 
 
 # Attempts to store each entry object in database with helper function, returns a list of all successfully stored posts
@@ -129,6 +131,7 @@ def _is_post_in_db(entry_object, post_type):
 def get_and_store_posts(num_posts, post_type):
     posts = _get_posts(num_posts, post_type)
     entry_objects = [_construct_entry_object(post, post_type) for post in posts]
+    entry_objects = remove_invalid_posts(entry_objects)
     new_posts = _store_entry_objects(entry_objects, post_type)
     print("Posts retrieved")
     return new_posts
@@ -141,6 +144,7 @@ def get_and_store_unstored(post_chunk_size, post_type):
     while True:
         posts = _get_posts(post_chunk_size * num_queries, post_type)
         entry_objects = [_construct_entry_object(post, post_type) for post in posts[(post_chunk_size * -1):]]
+        entry_objects = remove_invalid_posts(entry_objects)
         sorted_entry_objects = sort_by_created_time(entry_objects, False)
         were_all_already_stored = _is_post_in_db(sorted_entry_objects[-1], post_type)
         if were_all_already_stored:
@@ -151,6 +155,13 @@ def get_and_store_unstored(post_chunk_size, post_type):
     print("Querying complete")
     return new_posts
 
+
+def remove_invalid_posts(post_entry_objects):
+    output_list = []
+    for post_entry_object in post_entry_objects:
+        if post_entry_object is not None:
+            output_list.append(post_entry_object)
+    return output_list
 
 # Takes in list of posts and sorts by date, sort order is determined by is_reversed
 def sort_by_created_time(post_list, is_reversed):
