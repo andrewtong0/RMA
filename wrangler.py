@@ -34,7 +34,7 @@ def post_utc_to_timestamp(post):
 
 
 # TODO: Refactor this into two separate functions, one for post and one for comments? Unless too much duplication, but then maybe build a base of the message then pass in as a param
-def construct_reddit_message(post, triggered_matches, message_prefix, message_suffix):
+def construct_reddit_message(subreddit, post, triggered_matches, message_prefix, message_suffix):
     string_truncate = constants.StringConstants.STRING_TRUNCATE.value
     is_submission_post = is_post_submission(post)
     post_content = post["content"]
@@ -65,7 +65,7 @@ def construct_reddit_message(post, triggered_matches, message_prefix, message_su
         filter_name_matches += " | " + match["filter"]["name"] + " "
 
     # Footer message should contain concatenation of filters hit, and post ID
-    footer_content = filter_name_matches + " | Post ID: " + post["_id"]
+    footer_content = "r/" + subreddit + " | " + filter_name_matches + " | Post ID: " + post["_id"]
 
     # embed_thumbnail_link = RedditEmbedConsts.icon.value  # Looks a bit ugly being so large and redundant
     # if filter_action == constants.FilterActions.REMOVE:

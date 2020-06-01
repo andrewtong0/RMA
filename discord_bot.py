@@ -55,28 +55,25 @@ async def on_ready():
     await client.change_presence(activity=discord.Game(name='***REMOVED***'))
 
 
-def get_channels_from_ids(channel_ids):
-    channels = []
-    for channel_id in channel_ids:
-        channels.append(client.get_channel(channel_id))
-    return channels
+def get_channel_from_id(channel_id):
+    return client.get_channel(channel_id)
 
 
-def get_channels_of_type(channel_type):
+def get_channels_of_type(channel_type, subreddit_and_channels):
     # Set channel based on environment
     channels = []
     if channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_ALL.value:
-        for channel in user_preferences.SelectedSubredditsAndChannels:
-            channels += get_channels_from_ids(channel.main_channel_ids)
+        for channel_id in subreddit_and_channels.main_channel_ids:
+            channels.append(get_channel_from_id(channel_id))
     elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_POSTS.value:
-        for channel in user_preferences.SelectedSubredditsAndChannels:
-            channels += get_channels_from_ids(channel.post_channel_ids)
+        for channel_id in subreddit_and_channels.post_channel_ids:
+            channels.append(get_channel_from_id(channel_id))
     elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_COMMENTS.value:
-        for channel in user_preferences.SelectedSubredditsAndChannels:
-            channels += get_channels_from_ids(channel.comment_channel_ids)
+        for channel_id in subreddit_and_channels.comment_channel_ids:
+            channels.append(get_channel_from_id(channel_id))
     elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_PINGS.value:
-        for channel in user_preferences.SelectedSubredditsAndChannels:
-            channels += get_channels_from_ids(channel.ping_channel_ids)
+        for channel_id in subreddit_and_channels.ping_channel_ids:
+            channels.append(get_channel_from_id(channel_id))
     return channels
 
 
@@ -88,7 +85,8 @@ def get_channels_of_type(channel_type):
 async def poll_new_posts():
     await client.wait_until_ready()
     while not client.is_closed():
-        await get_new_reddit_posts(10)
+        for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+            await get_new_reddit_posts(10, subreddit_and_channels)
         await asyncio.sleep(user_preferences.BotConsts.POLL_TIMER.value)
 
 
@@ -98,19 +96,20 @@ async def poll_new_posts():
 # 2. The message containing the post itself
 # 3. A message containing a followup message (if any) - followup messages are used to provide content preview since
 #    embeds do not support previews.
-async def send_message(platform, reddit_object, triggered_matches, roles_to_ping=[], message_prefix="", message_suffix=""):
+async def send_message(platform, subreddit_and_channels, reddit_object, triggered_matches, roles_to_ping=[], message_prefix="", message_suffix=""):
     embed = {}
     followup_message = ""  # Used if there are differences in schema where something else needs to be added
-    channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_ALL.value)
-    ping_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_PINGS.value)
+    channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_ALL.value, subreddit_and_channels)
+    ping_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_PINGS.value, subreddit_and_channels)
     if reddit_object["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value:
-        channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_POSTS.value)
+        channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_POSTS.value, subreddit_and_channels)
     elif reddit_object["post_type"] == constants.DbEntry.REDDIT_COMMENT.value:
-        channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_COMMENTS.value)
+        channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_COMMENTS.value, subreddit_and_channels)
+    channels = list(dict.fromkeys(channels))  # Filter duplicates from list (similar to sets)
 
     if platform == constants.Platforms.REDDIT.value:
         message_object = wrangler.construct_reddit_message(
-            reddit_object, triggered_matches, message_prefix, message_suffix
+            subreddit_and_channels.subreddit, reddit_object, triggered_matches, message_prefix, message_suffix
         )
         embed = message_object["embed"]
         followup_message = message_object["followup_message"]
@@ -134,34 +133,35 @@ async def send_message(platform, reddit_object, triggered_matches, roles_to_ping
             await channel.send(content=followup_message)
 
 
-async def send_message_and_potentially_ping(post_and_matches):
+async def send_message_and_potentially_ping(post_and_matches, subreddit_and_channels):
     roles_to_ping = []
     post = post_and_matches["post"]
     matches = post_and_matches["matches"]
     for match in matches:
         for filter_specific_role in match["filter"]["roles_to_ping"]:
             roles_to_ping.append(filter_specific_role)
-    await send_message(constants.Platforms.REDDIT.value, post, matches, roles_to_ping)
+    await send_message(constants.Platforms.REDDIT.value, subreddit_and_channels, post, matches, roles_to_ping)
 
 
 # We take action on all posts, regardless if they have matches (if there are no matches, we only send a message)
-async def actions_on_posts(post_and_matches):
+async def actions_on_posts(post_and_matches, subreddit_and_channels):
     priority_action = praw_operations.determine_priority_action(post_and_matches)
     # TODO: Integrate priority action into ping message so we know what action is taken
-    await send_message_and_potentially_ping(post_and_matches)
+    await send_message_and_potentially_ping(post_and_matches, subreddit_and_channels)
 
 
 # Gets all new Reddit posts and stores them in the database
-async def get_new_reddit_posts(num_posts):
-    new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_SUBMISSION)
-    new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT)
+async def get_new_reddit_posts(num_posts, subreddit_and_channels):
+    subreddit_name = subreddit_and_channels.subreddit
+    new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_SUBMISSION, subreddit_name)
+    new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT, subreddit_name)
     new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
     if new_posts:
         print(str(len(new_posts)) + " new posts found.")
         print(new_posts)
     posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
-        await actions_on_posts(post_and_matches)
+        await actions_on_posts(post_and_matches, subreddit_and_channels)
 
 
 # ============
