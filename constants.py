@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class IDENTIFIERS(Enum):
+class Identifiers(Enum):
     DISCORD_MENTION_PREFIX = "@"
 
 
@@ -46,9 +46,21 @@ class RedditFilterActions(Enum):
     WATCHLIST = "Watchlist"
 
 
-class Restrictions(Enum):
-    TITLE_CHAR_MAX = 255
-    EMBED_BODY_CHAR_MAX = 1990
+class MessageLimitActions(Enum):
+    TRUNCATE = "truncate"
+    MULTI = "multi"
+    PAGINATE = "paginate"
+
+
+class CharacterLimits(Enum):
+    EMBED_TITLE = 256
+    EMBED_DESCRIPTION = 2048
+    EMBED_AUTHOR = 256
+    EMBED_FOOTER = 2048
+    EMBED_NUM_FIELDS = 25
+    EMBED_FIELD_NAME = 256
+    EMBED_FIELD_VALUE = 1024
+    EMBED_TOTAL_CHARS = 6000
 
 
 class StringConstants(Enum):
@@ -56,6 +68,8 @@ class StringConstants(Enum):
     STRING_COMMENT = "Comment"
     TIMESTAMP_TITLE = "Timestamp"
     STRING_TRUNCATE = "..."
+    EMBED_FIELD_TRUNCATE_MESSAGE = "Embed truncated to exclude {} post(s)."
+    EMBED_FIELD_TRUNCATE_NUMBER = 6  # For above string, we reserve this many characters for the count of # posts removed (e.g. 6 = a 6 digit number)
 
 
 class RedditDiscordChannelTypes(Enum):

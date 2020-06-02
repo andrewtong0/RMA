@@ -33,14 +33,105 @@ def post_utc_to_timestamp(post):
     return datetime.datetime.utcfromtimestamp(post["created_time"]["utc"])
 
 
+# Checks if number of characters has exceeded embed character limit
+def exceeds_embed_char_limit(num_chars):
+    return num_chars > constants.CharacterLimits.EMBED_TOTAL_CHARS.value
+
+
+# Given two limits (usually total char limit and another), truncate based on whichever is hit first
+def truncate_string_on_lower_limit(string, limit1, limit2):
+    if limit1 < limit2:
+        return string[:limit1]
+    else:
+        return string[:limit2]
+
+
+# If string exceeds max num characters for embed of the section-specific limit, truncate
+def truncate_embed_string_if_necessary(string, num_chars_so_far, string_char_limit):
+    string_len = len(string)
+    truncate_string = constants.StringConstants.STRING_TRUNCATE.value
+    truncate_string_len = len(truncate_string)
+
+    if exceeds_embed_char_limit(num_chars_so_far + string_len) or string_len > string_char_limit:
+        string = truncate_string_on_lower_limit(string, num_chars_so_far - truncate_string_len, string_char_limit - truncate_string_len)
+        string += truncate_string
+    return string
+
+
+# Removes fields from embed between ranges i1 and i2
+def remove_fields_in_range(embed, i1, i2):
+    for index in range(i1, i2):
+        embed.remove_field(index)
+    return embed
+
+
+# Depending on the action type, will truncate embed to not hit character limit
+def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
+    # Rolling value for embed length, updated in order of importance (so important values aren't truncated early)
+    num_chars_so_far = 0
+
+    # If the embed title exceeds the limit
+    embed.title = truncate_embed_string_if_necessary(embed.title, num_chars_so_far, constants.CharacterLimits.EMBED_TITLE.value)
+    # Note: Do not store len(embed.title) in a variable since the value is updated due to truncation and may change
+    num_chars_so_far += len(embed.title)
+
+    # If the embed description exceeds the limit
+    embed.description = truncate_embed_string_if_necessary(embed.description, num_chars_so_far, constants.CharacterLimits.EMBED_DESCRIPTION.value)
+    num_chars_so_far += len(embed.description)
+
+    # If the author name exceeds limit
+    embed.set_author(name=truncate_embed_string_if_necessary(embed.author.name, num_chars_so_far, constants.CharacterLimits.EMBED_AUTHOR.value),
+                     url=embed.author.url,
+                     icon_url=embed.author.icon_url)
+    num_chars_so_far += len(embed.author.name)
+
+    # If the footer exceeds limit
+    embed.set_footer(text=truncate_embed_string_if_necessary(embed.footer.text, num_chars_so_far, constants.CharacterLimits.EMBED_FOOTER.value),
+                     icon_url=embed.footer.icon_url)
+    num_chars_so_far += len(embed.footer.text)
+
+    # If the character limit of the fields along with title/description exceed limit, take action on fields
+    fields = embed.fields
+    if len(fields) > 0:
+        # Reserve characters for truncate string just in case
+        num_chars_so_far += len(constants.StringConstants.EMBED_FIELD_TRUNCATE_MESSAGE.value) + constants.StringConstants.EMBED_FIELD_TRUNCATE_NUMBER.value
+
+        # Preliminary check to see if number of fields exceeds limit
+        if len(fields) > constants.CharacterLimits.EMBED_NUM_FIELDS.value:
+            remove_fields_in_range(embed, constants.CharacterLimits.EMBED_NUM_FIELDS.value + 1, len(fields))
+
+        # Check over all fields and ensure field character limits are met
+        for index in range(len(fields)):
+            field = fields[index]
+
+            field_name = truncate_embed_string_if_necessary(field.name, num_chars_so_far, constants.CharacterLimits.EMBED_FIELD_NAME.value)
+            num_chars_so_far += len(field_name)
+            field_value = truncate_embed_string_if_necessary(field.value, num_chars_so_far, constants.CharacterLimits.EMBED_FIELD_VALUE.value)
+            num_chars_so_far += len(field_value)
+            embed.set_field_at(index=index,
+                               name=field_name,
+                               value=field_value,
+                               inline=field.inline)
+
+            # If after taking into account this field we exceed limit, truncate current and additional fields
+            if num_chars_so_far > constants.CharacterLimits.EMBED_TOTAL_CHARS.value:
+                # TRUNCATE: Remove all additional fields including this one and list how many more remaining
+                if action == constants.MessageLimitActions.TRUNCATE:
+                    embed = remove_fields_in_range(embed, index, range(fields))
+                    embed.footer += constants.StringConstants.EMBED_FIELD_TRUNCATE_MESSAGE.format(len(fields) - index - 1)
+                    break
+                # TODO: Implement additional truncation methods
+                # elif action == constants.MessageLimitActions.MULTI:
+                # elif action == constants.MessageLimitActions.PAGINATE:
+    return embed
+
+
 # TODO: Refactor this into two separate functions, one for post and one for comments? Unless too much duplication, but then maybe build a base of the message then pass in as a param
 def construct_reddit_message(subreddit, post, triggered_matches, message_prefix, message_suffix):
-    string_truncate = constants.StringConstants.STRING_TRUNCATE.value
     is_submission_post = is_post_submission(post)
     post_content = post["content"]
     embed_title = post["title"] if is_submission_post else post["author"]["username"] + " commented on a post"
-    embed_message_body_raw = post_content[:constants.Restrictions.EMBED_BODY_CHAR_MAX.value - len(string_truncate) - len(message_prefix) - len(message_suffix)] + string_truncate if len(post_content) >= constants.Restrictions.EMBED_BODY_CHAR_MAX.value else post_content
-    embed_message_body = message_prefix + "\n" + embed_message_body_raw + "\n" + message_suffix
+    embed_message_body = post_content
     embed_timestamp = post_utc_to_timestamp(post)
 
     author_name = post["author"]["username"]
@@ -48,8 +139,7 @@ def construct_reddit_message(subreddit, post, triggered_matches, message_prefix,
     author_icon = post["author"]["author_icon"]
 
     embed = discord.Embed(
-        title=(embed_title[:constants.Restrictions.TITLE_CHAR_MAX.value - len(string_truncate)] + "...")
-        if len(embed_title) > constants.Restrictions.TITLE_CHAR_MAX.value else embed_title,
+        title=embed_title,
         colour=discord.Colour(RedditEmbedConsts.post_colour.value) if is_submission_post else discord.Colour(RedditEmbedConsts.comment_colour.value),
         url=post["permalink"],
         description=embed_message_body,
@@ -101,6 +191,8 @@ def construct_reddit_message(subreddit, post, triggered_matches, message_prefix,
                      icon_url=author_icon)
     embed.set_footer(text=footer_content,
                      icon_url=RedditEmbedConsts.icon.value)
+
+    embed = truncate_embed(embed)
 
     output = {
         "embed": embed,
@@ -154,6 +246,8 @@ def construct_user_report_embed(user_posts, username, user_data):
             name="Moderator Comment / Added by @{} / {}".format(mod_comment_author, mod_comment_timestamp),
             value=comment["comment"]
         )
+
+    embed = truncate_embed(embed)
 
     return embed
 

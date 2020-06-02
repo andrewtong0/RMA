@@ -114,8 +114,11 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
         embed = message_object["embed"]
         followup_message = message_object["followup_message"]
 
+    # TODO: Pretty sure this is wrong
     for channel in channels:
         if roles_to_ping:  # TODO: Also take into account the platform for pings
+            servers = client.guilds
+
             found_roles = find_role(client.guilds[1].roles, roles_to_ping)  # TODO: Refactor out [0] since if the bot is in multiple servers, this may not reference the right server
 
             # Pings do not work in embeds, so they must be done as a separate, non-embed message
