@@ -130,7 +130,15 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
 def construct_reddit_message(subreddit, post, triggered_matches, message_prefix, message_suffix):
     is_submission_post = is_post_submission(post)
     post_content = post["content"]
-    embed_title = post["title"] if is_submission_post else post["author"]["username"] + " commented on a post"
+
+    # TODO: Tidy this up, currently very messy
+    # Add post flair if submission post
+    post_flair_raw = ""
+    if is_submission_post:
+        post_flair_raw = post["extra_info"]["initial_flair"] if post["extra_info"]["initial_flair"] is not None else "UNFLAIRED"
+    post_flair = "[" + post_flair_raw + "] " if is_submission_post else ""
+
+    embed_title = post_flair + post["title"] if is_submission_post else post["author"]["username"] + " commented on a post"
     embed_message_body = post_content
     embed_timestamp = post_utc_to_timestamp(post)
 

@@ -63,7 +63,12 @@ def _construct_entry_object(subreddit_name, post, post_type):
                 "content": content,
                 "permalink": permalink_domain + post.permalink,
                 # TODO: Check if content will always be more important than this - if you have image post w/ text, will content = the text and thumbnail = the image?
-                "thumbnail": post.thumbnail
+                "thumbnail": post.thumbnail,
+                "extra_info": {
+                    "initial_flair": post.link_flair_text,
+                    # TODO: Fix this and refactor so it doesn't only leverage off of the author_url
+                    "media_source": post.media["oembed"]["author_url"] if post.media and "oembed" in post.media.keys() and "author_url" in post.media["oembed"].keys() else None
+                }
             }
             return submission_entry
         elif post_type == constants.DbEntry.REDDIT_COMMENT:
