@@ -2,27 +2,10 @@ import constants
 import datetime
 import discord
 import re
-from enum import Enum
-
-
-class RedditEmbedConsts(Enum):
-    post_colour = 0xc77d00
-    comment_colour = 0xfbff00
-    error_colour = 0xff0000
-    removed_thumbnail = "https://cdn4.iconfinder.com/data/icons/social-messaging-ui-coloricon-1/21/52-512.png"
-    monitor_thumbnail = "https://c7.uihere.com/files/928/549/87/magnifying-glass-computer-icons-magnification-loupe.jpg"
-    icon = "https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png"
-    username_link = "https://reddit.com/u/"
-    regex_matchers = {
-        "image": ["external\\-preview\\.redd\\.it", "preview\\.redd\\.it", "i\\.redd\\.it", "pbs\\.twimg\\.com"],
-        "twitch_clip": ["twitch\\.tv"],
-        "youtube": ["youtube\\.com"],
-        "twitter": ["twitter\\.com"]
-    }
 
 
 def generate_reddit_user_link(username):
-    return RedditEmbedConsts.username_link.value + username
+    return constants.RedditEmbedConsts.username_link.value + username
 
 
 def is_post_submission(post):
@@ -60,8 +43,12 @@ def truncate_embed_string_if_necessary(string, num_chars_so_far, string_char_lim
 
 # Removes fields from embed between ranges i1 and i2
 def remove_fields_in_range(embed, i1, i2):
-    for index in range(i1, i2):
-        embed.remove_field(index)
+    upper_range = i2
+    lower_range = i1 - 1
+    for index in range(lower_range, upper_range):
+        # Index to remove since list shortens as items are removed, so must be dont from back end
+        index_to_remove = upper_range - index + constants.CharacterLimits.EMBED_NUM_FIELDS.value
+        embed.remove_field(index_to_remove)
     return embed
 
 
@@ -99,6 +86,7 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
         # Preliminary check to see if number of fields exceeds limit
         if len(fields) > constants.CharacterLimits.EMBED_NUM_FIELDS.value:
             remove_fields_in_range(embed, constants.CharacterLimits.EMBED_NUM_FIELDS.value + 1, len(fields))
+            fields = embed.fields  # Update count after removing extras
 
         # Check over all fields and ensure field character limits are met
         for index in range(len(fields)):
@@ -117,7 +105,7 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
             if num_chars_so_far > constants.CharacterLimits.EMBED_TOTAL_CHARS.value:
                 # TRUNCATE: Remove all additional fields including this one and list how many more remaining
                 if action == constants.MessageLimitActions.TRUNCATE:
-                    embed = remove_fields_in_range(embed, index, range(fields))
+                    embed = remove_fields_in_range(embed, index, range(len(fields)))
                     embed.footer += constants.StringConstants.EMBED_FIELD_TRUNCATE_MESSAGE.format(len(fields) - index - 1)
                     break
                 # TODO: Implement additional truncation methods
@@ -127,7 +115,7 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
 
 
 # TODO: Refactor this into two separate functions, one for post and one for comments? Unless too much duplication, but then maybe build a base of the message then pass in as a param
-def construct_reddit_message(subreddit, post, triggered_matches, message_prefix, message_suffix):
+def construct_reddit_message(subreddit, post, triggered_matches):
     is_submission_post = is_post_submission(post)
     post_content = post["content"]
 
@@ -148,7 +136,7 @@ def construct_reddit_message(subreddit, post, triggered_matches, message_prefix,
 
     embed = discord.Embed(
         title=embed_title,
-        colour=discord.Colour(RedditEmbedConsts.post_colour.value) if is_submission_post else discord.Colour(RedditEmbedConsts.comment_colour.value),
+        colour=discord.Colour(constants.RedditEmbedConsts.post_colour.value) if is_submission_post else discord.Colour(constants.RedditEmbedConsts.comment_colour.value),
         url=post["permalink"],
         description=embed_message_body,
         timestamp=embed_timestamp
@@ -163,20 +151,20 @@ def construct_reddit_message(subreddit, post, triggered_matches, message_prefix,
         filter_name_matches += " | " + match["filter"]["name"] + " "
 
     # Footer message should contain concatenation of filters hit, and post ID
-    footer_content = "r/" + subreddit + " | " + filter_name_matches + " | Post ID: " + post["_id"]
+    footer_content = "r/" + subreddit + " | " + filter_name_matches + " | " + constants.StringConstants.POST_ID.value + post["_id"]
 
-    # embed_thumbnail_link = RedditEmbedConsts.icon.value  # Looks a bit ugly being so large and redundant
+    # embed_thumbnail_link = constants.RedditEmbedConsts.icon.value  # Looks a bit ugly being so large and redundant
     # if filter_action == constants.FilterActions.REMOVE:
-    #     embed_thumbnail_link = RedditEmbedConsts.reddit_removed_thumbnail.value
+    #     embed_thumbnail_link = constants.RedditEmbedConsts.reddit_removed_thumbnail.value
     # elif filter_action == constants.FilterActions.MONITOR:
-    #     embed_thumbnail_link = RedditEmbedConsts.reddit_monitor_thumbnail.value
+    #     embed_thumbnail_link = constants.RedditEmbedConsts.reddit_monitor_thumbnail.value
     # embed.set_thumbnail(url=embed_thumbnail_link)
 
     # Checking to see what kind of content is contained to determine how to display
-    image_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["image"])
-    twitch_clip_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["twitch_clip"])
-    youtube_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["youtube"])
-    twitter_match = constants.create_regex_string(RedditEmbedConsts.regex_matchers.value["twitter"])
+    image_match = constants.create_regex_string(constants.RedditEmbedConsts.regex_matchers.value["image"])
+    twitch_clip_match = constants.create_regex_string(constants.RedditEmbedConsts.regex_matchers.value["twitch_clip"])
+    youtube_match = constants.create_regex_string(constants.RedditEmbedConsts.regex_matchers.value["youtube"])
+    twitter_match = constants.create_regex_string(constants.RedditEmbedConsts.regex_matchers.value["twitter"])
 
     # Followup message is used in cases that require non-embed to display preview
     followup_message = ""
@@ -198,7 +186,7 @@ def construct_reddit_message(subreddit, post, triggered_matches, message_prefix,
                      url=embed_username_link,
                      icon_url=author_icon)
     embed.set_footer(text=footer_content,
-                     icon_url=RedditEmbedConsts.icon.value)
+                     icon_url=constants.RedditEmbedConsts.icon.value)
 
     embed = truncate_embed(embed)
 
@@ -224,7 +212,7 @@ def construct_user_report_embed(user_posts, username, user_data):
 
     embed = discord.Embed(
         title=("User Report for {}".format(username)),
-        colour=discord.Colour(RedditEmbedConsts.post_colour.value),
+        colour=discord.Colour(constants.RedditEmbedConsts.post_colour.value),
         url=generate_reddit_user_link(username),
         description=("Karma: {} / Tags: {}".format(str(user_karma), tags_string))
     )
@@ -237,7 +225,7 @@ def construct_user_report_embed(user_posts, username, user_data):
             inline=True
         )
         embed.add_field(
-            name="Permalink",
+            name="Permalink" + " (ID: " + post["_id"] + ")",
             value=post["permalink"],
             inline=True
         )
@@ -255,8 +243,10 @@ def construct_user_report_embed(user_posts, username, user_data):
             value=comment["comment"]
         )
 
-    embed = truncate_embed(embed)
+    embed.set_author(name=constants.BotAuthorDetails.NAME.value,
+                     icon_url=constants.BotAuthorDetails.ICON_URL.value)
 
+    embed = truncate_embed(embed)
     return embed
 
 
@@ -264,8 +254,31 @@ def construct_user_report_embed(user_posts, username, user_data):
 def construct_user_not_found_embed(username):
     embed = discord.Embed(
         title="Error: User not found",
-        colour=discord.Colour(RedditEmbedConsts.error_colour.value),
+        colour=discord.Colour(constants.RedditEmbedConsts.error_colour.value),
         url=generate_reddit_user_link(username),
         description="The user you tried to query for could not be found. Please check the associated link and verify the account is not banned or suspended."
     )
+    return embed
+
+
+def construct_negative_comment_tree_embed(submission, comments):
+    embed = discord.Embed(
+        title=submission.title,
+        colour=discord.Colour(constants.RedditEmbedConsts.post_colour.value),
+        url=constants.RedditEmbedConsts.permalink_domain.value + submission.permalink
+    )
+    embed.set_author(name="Negative Comment Tree")
+
+    for comment in comments:
+        author = comment.author.name
+        author_link = constants.RedditEmbedConsts.username_link.value + author
+        comment_link = constants.RedditEmbedConsts.permalink_domain.value + comment.permalink
+        links = "[Profile]({}) | [Comment Link]({})".format(author_link, comment_link)
+        body = comment.body + "\n" + links
+
+        name_and_karma = "[" + str(comment.score) + "] " + author
+        embed.add_field(name=name_and_karma,
+                        value=body,
+                        inline=False)
+    embed = truncate_embed(embed)
     return embed

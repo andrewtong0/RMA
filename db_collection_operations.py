@@ -158,3 +158,16 @@ def add_user_comment(context, username, comment):
         return db.users.find_one_and_update({"username": username}, {"$push": {"mod_comments": comment_object}})
     else:
         return None
+
+
+def get_post(post_id):
+    return db.submissions.find_one({"_id": post_id})
+
+
+# Checks if post in database is of submission or comment type
+def is_post_submission(post_id):
+    post = get_post(post_id)
+    # If a post is found, reverify that it is a submission (although this is a double check since we're querying the submissions collection anyways)
+    if post is not None:
+        return post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+    return False

@@ -1,3 +1,4 @@
+import time
 import praw
 from pymongo import MongoClient
 from datetime import datetime
@@ -34,7 +35,6 @@ def _get_posts(num_posts, posts_type, subreddit_name):
 def _construct_entry_object(subreddit_name, post, post_type):
     utc = post.created_utc
     timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
-    permalink_domain = "https://reddit.com"
     content = ""
     if post.author:
         if post_type == constants.DbEntry.REDDIT_SUBMISSION:
@@ -61,7 +61,7 @@ def _construct_entry_object(subreddit_name, post, post_type):
                     "utc": utc
                 },
                 "content": content,
-                "permalink": permalink_domain + post.permalink,
+                "permalink": constants.RedditEmbedConsts.permalink_domain.value + post.permalink,
                 # TODO: Check if content will always be more important than this - if you have image post w/ text, will content = the text and thumbnail = the image?
                 "thumbnail": post.thumbnail,
                 "extra_info": {
@@ -96,7 +96,7 @@ def _construct_entry_object(subreddit_name, post, post_type):
                     "utc": utc
                 },
                 "content": post.body,
-                "permalink": permalink_domain + post.permalink,
+                "permalink": constants.RedditEmbedConsts.permalink_domain.value + post.permalink,
                 "submission_id": submission_id,
                 "comment_parent_id": comment_parent_id
             }
@@ -191,3 +191,20 @@ def determine_priority_action(post_and_matches):
         elif match_action == constants.FilterActions.MONITOR.value and priority_action != constants.RedditFilterActions.SHADOWBAN.value:
             priority_action = constants.RedditFilterActions.WATCHLIST.value
     return priority_action
+
+
+def request_submission(post_id):
+    return reddit.submission(id=post_id)
+
+
+def request_sorted_comments(submission):
+    # Raw list of all comments (recursed through comment trees)
+    submission.comments.replace_more(limit=None)
+    comments = submission.comments.list()
+
+    # Sort comments based on karma (lowest values first)
+    sorted_comments = sorted(comments, key=lambda comment: comment.score, reverse=False)
+
+    # Remove comments that have been deleted (i.e. no author)
+    tidied_list = [comment for comment in sorted_comments if comment.author and comment.author.name]
+    return tidied_list

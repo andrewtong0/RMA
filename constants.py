@@ -64,7 +64,35 @@ class CharacterLimits(Enum):
     EMBED_TOTAL_CHARS = 6000
 
 
+class RedditReactEmojis(Enum):
+    GENERATE_USER_REPORT = "❔"  # White question mark
+    GENERATE_NEGATIVE_COMMENT_TREE = "❗"  # Red exclamation mark
+
+
+class RedditEmbedConsts(Enum):
+    post_colour = 0xc77d00
+    comment_colour = 0xfbff00
+    error_colour = 0xff0000
+    permalink_domain = "https://reddit.com"
+    username_link = "https://reddit.com/u/"
+    removed_thumbnail = "https://cdn4.iconfinder.com/data/icons/social-messaging-ui-coloricon-1/21/52-512.png"
+    monitor_thumbnail = "https://c7.uihere.com/files/928/549/87/magnifying-glass-computer-icons-magnification-loupe.jpg"
+    icon = "https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png"
+    regex_matchers = {
+        "image": ["external\\-preview\\.redd\\.it", "preview\\.redd\\.it", "i\\.redd\\.it", "pbs\\.twimg\\.com"],
+        "twitch_clip": ["twitch\\.tv"],
+        "youtube": ["youtube\\.com"],
+        "twitter": ["twitter\\.com"]
+    }
+
+
+class BotAuthorDetails(Enum):
+    NAME = "RMA",
+    ICON_URL = "https://www.redditstatic.com/desktop2x/img/favicon/android-icon-192x192.png"
+
+
 class StringConstants(Enum):
+    POST_ID = "Post ID: "
     STRING_POST = "Post"
     STRING_COMMENT = "Comment"
     TIMESTAMP_TITLE = "Timestamp"

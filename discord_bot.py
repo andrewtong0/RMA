@@ -19,7 +19,7 @@ import environment_variables
 
 
 # Initializes filters on startup by grabbing filters
-def get_filters():
+def set_filters():
     retrieved_filters = db_collection_operations.get_collection("filters")
     output_filters = []
     for f in retrieved_filters:
@@ -41,7 +41,7 @@ def find_role(roles, roles_to_find):
 # ==============
 
 client = commands.Bot(command_prefix=user_preferences.Settings.BOT_PREFIX.value)
-db_filters = get_filters()
+db_filters = set_filters()
 
 # =====================
 # GENERIC BOT FUNCTIONS
@@ -109,7 +109,7 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
 
     if platform == constants.Platforms.REDDIT.value:
         message_object = wrangler.construct_reddit_message(
-            subreddit_and_channels.subreddit, reddit_object, triggered_matches, message_prefix, message_suffix
+            subreddit_and_channels.subreddit, reddit_object, triggered_matches
         )
         embed = message_object["embed"]
         followup_message = message_object["followup_message"]
@@ -125,13 +125,24 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
                 for found_role in found_roles:
                     ping_string += found_role.mention + " "
                 for ping_channel in ping_channels:
-                    await ping_channel.send(embed=embed)
+                    await send_main_post_message(ping_channel, embed, True)
                     await ping_channel.send("Post alert {}".format(ping_string))
                     if followup_message:
                         await ping_channel.send(content=followup_message)
-        await channel.send(embed=embed)
+        await send_main_post_message(channel, embed, True)
         if followup_message:
             await channel.send(content=followup_message)
+
+
+# Abstracted calls to send main Reddit post/comment message into function for single point editing
+# Override flag since normally to check if post is submission, we query DB, which causes a race condition if post
+# is stored before it can be queried. Override bypasses this check and adds the flair.
+async def send_main_post_message(channel, embed, override=False):
+    message = await channel.send(embed=embed)
+    await message.add_reaction(constants.RedditReactEmojis.GENERATE_USER_REPORT.value)
+    post_id = get_embed_post_id(embed)
+    if override or db_collection_operations.is_post_submission(post_id):
+        await message.add_reaction(constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value)
 
 
 async def send_message_and_potentially_ping(post_and_matches, subreddit_and_channels):
@@ -153,6 +164,10 @@ async def actions_on_posts(post_and_matches, subreddit_and_channels):
 
 # Gets all new Reddit posts and stores them in the database
 async def get_new_reddit_posts(num_posts, subreddit_and_channels):
+    # Refresh filters on each poll
+    global db_filters
+    db_filters = set_filters()
+
     subreddit_name = subreddit_and_channels.subreddit
     new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_SUBMISSION, subreddit_name)
     new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT, subreddit_name)
@@ -163,6 +178,50 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
         await actions_on_posts(post_and_matches, subreddit_and_channels)
+
+
+def check_user_is_not_bot(reacting_user):
+    return client.user.id != reacting_user.id
+
+
+def check_message_is_from_bot(message):
+    return message.author.id == client.user.id
+
+
+# Returns all comments from a post with negative karma values
+def get_negative_comment_tree(submission):
+    pruned_comments = []
+    comments = praw_operations.request_sorted_comments(submission)
+    # Remove all comments >= 0 karma
+    for comment in comments:
+        if comment.score < 0:
+            pruned_comments.append(comment)
+    return pruned_comments
+
+
+def get_embed_post_id(embed):
+    # TODO: Fix this, it's a bit hacky right now to get the Post ID by partioning - if any text is added after the post ID, it gets messed up
+    footer = embed.footer.text
+    post_id = footer.partition(constants.StringConstants.POST_ID.value)[2]
+    return post_id
+
+
+# Splits initial reaction to appropriate call
+async def handle_reaction(reaction, user):
+    message = reaction.message
+    # If the reaction is not from bot and the message being reacted to is a bot message
+    if check_user_is_not_bot(user) and check_message_is_from_bot(reaction.message):
+        if reaction.emoji == constants.RedditReactEmojis.GENERATE_USER_REPORT.value:
+            embed = db_collection_operations.generate_user_report(message.embeds[0].author.name)
+            await message.channel.send(embed=embed)
+        # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
+        elif reaction.emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
+            message_embed = reaction.message.embeds[0]
+            post_id = get_embed_post_id(message_embed)
+            submission = praw_operations.request_submission(post_id)
+            comments = get_negative_comment_tree(submission)
+            embed = wrangler.construct_negative_comment_tree_embed(submission, comments)
+            await message.channel.send(embed=embed)
 
 
 # ============
@@ -212,6 +271,13 @@ async def get_matches(context, filter_name):
 
 
 @client.command()
+async def get_post(context, post_id):
+    post = db_collection_operations.get_post(post_id)
+    embed = wrangler.construct_reddit_message(post["subreddit"], post, [])["embed"]
+    await send_main_post_message(context.channel, embed)
+
+
+@client.command()
 async def get_filters(context):
     filter_names = db_collection_operations.get_filters()
     if filter_names:
@@ -242,6 +308,12 @@ async def add_user_comment(context, username, *comment):
         await context.send("Moderator comment added to {}.".format(username))
     else:
         await context.send("There was an issue adding your comment.")
+
+
+@client.event
+async def on_reaction_add(reaction, user):
+    await handle_reaction(reaction, user)
+    # print(reaction)
 
 
 # Initialize and run Discord bot
