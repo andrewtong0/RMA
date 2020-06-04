@@ -145,9 +145,7 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
 # Override flag since normally to check if post is submission, we query DB, which causes a race condition if post
 # is stored before it can be queried. Override bypasses this check and adds the flair.
 async def send_main_post_message_and_add_reactions(channel, embed, override=False, flag_reaction=True, additional_message=""):
-    if additional_message != "":
-        await channel.send(additional_message)
-    message = await channel.send(embed=embed)
+    message = await channel.send(content=additional_message, embed=embed)
 
     # Flag reaction set to boolean so that it can be overrided to not display in secondary review channels and instead
     # display approve/deny reacts
@@ -264,7 +262,7 @@ async def handle_reaction(reaction, user):
             is_approved = False
             if react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value:
                 is_approved = True
-            review_requester_uuid = message.content.partition("(")[2].partition(")")[0]
+            review_requester_uuid = message.content.partition(" (")[2].partition(")")[0]  # Do not delete the space in the first partition match
             review_requester = "<@" + review_requester_uuid + ">"
             review_fulfiller = "<@" + str(user.id) + ">"
             embed = await wrangler.construct_approve_or_reject_review_embed(message.embeds[0], review_requester, review_fulfiller, is_approved, message.reactions, client.user.id)
