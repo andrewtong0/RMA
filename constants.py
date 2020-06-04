@@ -68,12 +68,33 @@ class RedditReactEmojis(Enum):
     GENERATE_USER_REPORT = "❔"             # White question mark
     GENERATE_NEGATIVE_COMMENT_TREE = "❗"    # Red exclamation mark
     CLEAR_GENERATED_EMBED = "❌"            # Red "X"
+    SECONDARY_REVIEW_FLAG = "🚩"            # Red flag
+    SECONDARY_REVIEW_APPROVE = "✅"         # Green check mark
+    SECONDARY_REVIEW_REJECT = "🚫"          # Red "no-entry" sign
+    SECONDARY_REVIEW_UPVOTE = "👍"          # Thumbs up
+    SECONDARY_REVIEW_DOWNVOTE = "👎"        # Thumbs down
+
+
+# Reacts that after clicking, should remove original message
+ReactsThatClearMessage = [
+    RedditReactEmojis.CLEAR_GENERATED_EMBED.value,
+    RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value,
+    RedditReactEmojis.SECONDARY_REVIEW_REJECT.value
+]
+
+# Reacts that shouldn't be removed after being clicked
+ReactsThatPersist = [
+    RedditReactEmojis.SECONDARY_REVIEW_UPVOTE.value,
+    RedditReactEmojis.SECONDARY_REVIEW_DOWNVOTE.value
+]
 
 
 class RedditEmbedConsts(Enum):
     post_colour = 0xc77d00
     comment_colour = 0xfbff00
     error_colour = 0xff0000
+    approve_colour = 0x40e300
+    reject_colour = 0xfc0000
     permalink_domain = "https://reddit.com"
     username_link = "https://reddit.com/u/"
     removed_thumbnail = "https://cdn4.iconfinder.com/data/icons/social-messaging-ui-coloricon-1/21/52-512.png"
@@ -100,6 +121,8 @@ class StringConstants(Enum):
     STRING_TRUNCATE = "..."
     EMBED_FIELD_TRUNCATE_MESSAGE = "Embed truncated to exclude {} post(s)."
     EMBED_FIELD_TRUNCATE_NUMBER = 6  # For above string, we reserve this many characters for the count of # posts removed (e.g. 6 = a 6 digit number)
+    SECONDARY_REVIEW_TITLE_PREFIX = "Secondary review requested"
+    SECONDARY_REVIEW_REQUESTED_BY_SEPARATOR = "by"
 
 
 class RedditDiscordChannelTypes(Enum):
@@ -107,6 +130,7 @@ class RedditDiscordChannelTypes(Enum):
     RD_CHANNELTYPE_POSTS = "rd_posts"
     RD_CHANNELTYPE_COMMENTS = "rd_comments"
     RD_CHANNELTYPE_PINGS = "rd_pings"
+    RD_CHANNELTYPE_SECONDARY_REVIEW = "rd_secondary_review"
 
 
 # Currently only works with 1 word strings (e.g. links) with whitespace checks

@@ -164,6 +164,10 @@ def get_post(post_id):
     return db.submissions.find_one({"_id": post_id})
 
 
+def get_comment(post_id):
+    return db.comments.find_one({"_id": post_id})
+
+
 # Checks if post in database is of submission or comment type
 def is_post_submission(post_id):
     post = get_post(post_id)

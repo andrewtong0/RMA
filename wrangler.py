@@ -282,3 +282,75 @@ def construct_negative_comment_tree_embed(submission, comments):
                         inline=False)
     embed = truncate_embed(embed)
     return embed
+
+
+async def add_user_reacts_to_string(reaction, vote_icon_string, bot_uuid):
+    users = await reaction.users().flatten()
+    current_string = ""
+    for user in users:
+        if user.id != bot_uuid:
+            current_string += vote_icon_string + " " + user.name + "\n"
+    return current_string
+
+
+async def get_vote_score_and_string(reactions, bot_uuid):
+    upvote_emoji = constants.RedditReactEmojis.SECONDARY_REVIEW_UPVOTE.value
+    downvote_emoji = constants.RedditReactEmojis.SECONDARY_REVIEW_DOWNVOTE.value
+    vote_score = 0
+    vote_string = ""
+    for reaction in reactions:
+        reaction_emoji = reaction.emoji
+        if reaction_emoji == upvote_emoji or reaction_emoji == downvote_emoji:
+            if reaction_emoji == upvote_emoji:
+                vote_score += reaction.count
+                vote_string += await add_user_reacts_to_string(reaction, "[+1]", bot_uuid)
+            elif reaction_emoji == downvote_emoji:
+                vote_score -= reaction.count
+                vote_string += await add_user_reacts_to_string(reaction, "[-1]", bot_uuid)
+    return {
+        "vote_score": vote_score,
+        "vote_string": vote_string
+    }
+
+
+async def construct_approve_or_reject_review_embed(reviewed_post_embed, review_requester, review_fulfiller, is_approved, reactions, bot_uuid):
+    embed_colour = 0
+    status_result = ""
+    if is_approved:
+        embed_colour = constants.RedditEmbedConsts.approve_colour.value
+        status_result = constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value + " Approved"
+    else:
+        embed_colour = constants.RedditEmbedConsts.reject_colour.value
+        status_result = constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value + " Rejected"
+
+    embed_description = reviewed_post_embed.description
+    embed = discord.Embed(
+        title=status_result + " | " + reviewed_post_embed.title,
+        description=embed_description,
+        colour=discord.Colour(embed_colour),
+        url=reviewed_post_embed.url
+    )
+    embed.add_field(
+        name="Review Requested By:",
+        value=review_requester,
+        inline=True
+    )
+    embed.add_field(
+        name="Review Fulfilled By:",
+        value=review_fulfiller,
+        inline=True
+    )
+
+    vote_results = await get_vote_score_and_string(reactions, bot_uuid)
+    if vote_results["vote_score"] != 0:
+        embed.add_field(
+            name="Vote Results ({}):".format(vote_results["vote_score"]),
+            value=vote_results["vote_string"],
+            inline=True
+        )
+
+    embed.set_author(
+        name="Secondary Review Status"
+    )
+    embed = truncate_embed(embed)
+    return embed

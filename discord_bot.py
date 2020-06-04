@@ -1,5 +1,6 @@
 import asyncio
 import discord
+import re
 from discord.ext import commands
 
 # File imports
@@ -74,6 +75,9 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
     elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_PINGS.value:
         for channel_id in subreddit_and_channels.ping_channel_ids:
             channels.append(get_channel_from_id(channel_id))
+    elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_SECONDARY_REVIEW.value:
+        for channel_id in subreddit_and_channels.secondary_review_channel_ids:
+            channels.append(get_channel_from_id(channel_id))
     return channels
 
 
@@ -126,13 +130,13 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
             for found_role in found_roles:
                 ping_string += found_role.mention + " "
             for ping_channel in ping_channels:
-                await send_main_post_message(ping_channel, embed, is_post_submission)
+                await send_main_post_message_and_add_reactions(ping_channel, embed, is_post_submission)
                 await ping_channel.send("Post alert {}".format(ping_string))
                 if followup_message:
                     await ping_channel.send(content=followup_message)
 
     for channel in channels:
-        await send_main_post_message(channel, embed, is_post_submission)
+        await send_main_post_message_and_add_reactions(channel, embed, is_post_submission)
         if followup_message:
             await channel.send(content=followup_message)
 
@@ -140,12 +144,24 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
 # Abstracted calls to send main Reddit post/comment message into function for single point editing
 # Override flag since normally to check if post is submission, we query DB, which causes a race condition if post
 # is stored before it can be queried. Override bypasses this check and adds the flair.
-async def send_main_post_message(channel, embed, override=False):
+async def send_main_post_message_and_add_reactions(channel, embed, override=False, flag_reaction=True, additional_message=""):
+    if additional_message != "":
+        await channel.send(additional_message)
     message = await channel.send(embed=embed)
-    await message.add_reaction(constants.RedditReactEmojis.GENERATE_USER_REPORT.value)
-    post_id = get_embed_post_id(embed)
-    if override or db_collection_operations.is_post_submission(post_id):
-        await message.add_reaction(constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value)
+
+    # Flag reaction set to boolean so that it can be overrided to not display in secondary review channels and instead
+    # display approve/deny reacts
+    if flag_reaction:
+        await message.add_reaction(constants.RedditReactEmojis.GENERATE_USER_REPORT.value)
+        post_id = get_embed_post_id(embed)
+        if override or db_collection_operations.is_post_submission(post_id):
+            await message.add_reaction(constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value)
+        await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value)
+    else:
+        await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value)
+        await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value)
+        await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_UPVOTE.value)
+        await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_DOWNVOTE.value)
 
 
 async def send_message_and_potentially_ping(post_and_matches, subreddit_and_channels):
@@ -212,14 +228,15 @@ def get_embed_post_id(embed):
 # Splits initial reaction to appropriate call
 async def handle_reaction(reaction, user):
     message = reaction.message
+    react_emoji = reaction.emoji
     # If the reaction is not from bot and the message being reacted to is a bot message
     if check_user_is_not_bot(user) and check_message_is_from_bot(reaction.message):
-        if reaction.emoji == constants.RedditReactEmojis.GENERATE_USER_REPORT.value:
+        if react_emoji == constants.RedditReactEmojis.GENERATE_USER_REPORT.value:
             embed = db_collection_operations.generate_user_report(message.embeds[0].author.name)
             generated_message = await message.channel.send(embed=embed)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
-        elif reaction.emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
+        elif react_emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
             message_embed = reaction.message.embeds[0]
             post_id = get_embed_post_id(message_embed)
             submission = praw_operations.request_submission(post_id)
@@ -227,12 +244,39 @@ async def handle_reaction(reaction, user):
             embed = wrangler.construct_negative_comment_tree_embed(submission, comments)
             generated_message = await message.channel.send(embed=embed)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
+        elif react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value:
+            original_embed = message.embeds[0]
+            # Extracts subreddit from footer
+            subreddit = original_embed.footer.text.partition("r/")[2].partition(" |")[0]  # TODO: Refactor into constants or clean up
+            selected_sub_and_ch = None
+            for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+                if subreddit == subreddit_and_channels.subreddit:
+                    selected_sub_and_ch = subreddit_and_channels
+                    break
+            secondary_review_role = find_role(client.guilds[0].roles, [user_preferences.Settings.BOT_SECONDARY_REVIEW_ROLE.value])
+            flag_message_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_SECONDARY_REVIEW.value, selected_sub_and_ch)
+            for channel in flag_message_channels:
+                reviewer_ping = secondary_review_role[0].mention + " " if secondary_review_role is not [] else ""
+                request_message = "{}{} {} {} ({})".format(reviewer_ping, constants.StringConstants.SECONDARY_REVIEW_TITLE_PREFIX.value, constants.StringConstants.SECONDARY_REVIEW_REQUESTED_BY_SEPARATOR.value, user.name, user.id)
+                await send_main_post_message_and_add_reactions(channel, original_embed, False, False, request_message)
+        # Handle secondary review approve/reject
+        elif react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value or react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value:
+            is_approved = False
+            if react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value:
+                is_approved = True
+            review_requester_uuid = message.content.partition("(")[2].partition(")")[0]
+            review_requester = "<@" + review_requester_uuid + ">"
+            review_fulfiller = "<@" + str(user.id) + ">"
+            embed = await wrangler.construct_approve_or_reject_review_embed(message.embeds[0], review_requester, review_fulfiller, is_approved, message.reactions, client.user.id)
+
+            await message.channel.send(content=review_requester, embed=embed)
 
         # Reset reaction to allow for repeated actions
-        await message.remove_reaction(reaction.emoji, user)
+        if reaction.emoji not in constants.ReactsThatPersist:
+            await message.remove_reaction(reaction.emoji, user)
 
         # This must be run after reaction removal since it will attempt to remove react from nonexistent message
-        if reaction.emoji == constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value:
+        if reaction.emoji in constants.ReactsThatClearMessage:
             await message.delete()
 
 
@@ -282,11 +326,20 @@ async def get_matches(context, filter_name):
         await context.send("There was an issue finding the matches for {}. Verify the specified filter.".format(filter_name))
 
 
+# Get post or comment by ID and send embed message. If nothing is found, send error message.
 @client.command()
 async def get_post(context, post_id):
     post = db_collection_operations.get_post(post_id)
-    embed = wrangler.construct_reddit_message(post["subreddit"], post, [])["embed"]
-    await send_main_post_message(context.channel, embed)
+    if post is not None:
+        embed = wrangler.construct_reddit_message(post["subreddit"], post, [])["embed"]
+        await send_main_post_message_and_add_reactions(context.channel, embed)
+    else:
+        comment = db_collection_operations.get_comment(post_id)
+        if comment is not None:
+            embed = wrangler.construct_reddit_message(comment["subreddit"], comment, [])["embed"]
+            await send_main_post_message_and_add_reactions(context.channel, embed)
+        else:
+            await context.channel.send("Failed to send message. Please verify the post ID.")
 
 
 @client.command()
