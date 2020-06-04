@@ -65,8 +65,9 @@ class CharacterLimits(Enum):
 
 
 class RedditReactEmojis(Enum):
-    GENERATE_USER_REPORT = "❔"  # White question mark
-    GENERATE_NEGATIVE_COMMENT_TREE = "❗"  # Red exclamation mark
+    GENERATE_USER_REPORT = "❔"             # White question mark
+    GENERATE_NEGATIVE_COMMENT_TREE = "❗"    # Red exclamation mark
+    CLEAR_GENERATED_EMBED = "❌"            # Red "X"
 
 
 class RedditEmbedConsts(Enum):

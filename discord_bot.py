@@ -101,6 +101,9 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
     followup_message = ""  # Used if there are differences in schema where something else needs to be added
     channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_ALL.value, subreddit_and_channels)
     ping_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_PINGS.value, subreddit_and_channels)
+    is_post_submission = reddit_object["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+
+    # Decided not to use is_post_submission here for clarity and in case additional post types are added later
     if reddit_object["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value:
         channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_POSTS.value, subreddit_and_channels)
     elif reddit_object["post_type"] == constants.DbEntry.REDDIT_COMMENT.value:
@@ -114,22 +117,22 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
         embed = message_object["embed"]
         followup_message = message_object["followup_message"]
 
-    # TODO: Pretty sure this is wrong
-    for channel in channels:
-        if roles_to_ping:  # TODO: Also take into account the platform for pings
-            found_roles = find_role(client.guilds[environment_variables.SERVER_INDEX].roles, roles_to_ping)  # TODO: Refactor out [0] since if the bot is in multiple servers, this may not reference the right server
+    if roles_to_ping:  # TODO: Also take into account the platform for pings
+        found_roles = find_role(client.guilds[0].roles, roles_to_ping)  # TODO: Refactor guilds[0]
 
-            # Pings do not work in embeds, so they must be done as a separate, non-embed message
-            if found_roles:
-                ping_string = ""
-                for found_role in found_roles:
-                    ping_string += found_role.mention + " "
-                for ping_channel in ping_channels:
-                    await send_main_post_message(ping_channel, embed, True)
-                    await ping_channel.send("Post alert {}".format(ping_string))
-                    if followup_message:
-                        await ping_channel.send(content=followup_message)
-        await send_main_post_message(channel, embed, True)
+        # Pings do not work in embeds, so they must be done as a separate, non-embed message
+        if found_roles:
+            ping_string = ""
+            for found_role in found_roles:
+                ping_string += found_role.mention + " "
+            for ping_channel in ping_channels:
+                await send_main_post_message(ping_channel, embed, is_post_submission)
+                await ping_channel.send("Post alert {}".format(ping_string))
+                if followup_message:
+                    await ping_channel.send(content=followup_message)
+
+    for channel in channels:
+        await send_main_post_message(channel, embed, is_post_submission)
         if followup_message:
             await channel.send(content=followup_message)
 
@@ -180,8 +183,8 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
         await actions_on_posts(post_and_matches, subreddit_and_channels)
 
 
-def check_user_is_not_bot(reacting_user):
-    return client.user.id != reacting_user.id
+def check_user_is_not_bot(user_to_check):
+    return client.user.id != user_to_check.id
 
 
 def check_message_is_from_bot(message):
@@ -213,7 +216,8 @@ async def handle_reaction(reaction, user):
     if check_user_is_not_bot(user) and check_message_is_from_bot(reaction.message):
         if reaction.emoji == constants.RedditReactEmojis.GENERATE_USER_REPORT.value:
             embed = db_collection_operations.generate_user_report(message.embeds[0].author.name)
-            await message.channel.send(embed=embed)
+            generated_message = await message.channel.send(embed=embed)
+            await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
         elif reaction.emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
             message_embed = reaction.message.embeds[0]
@@ -221,7 +225,15 @@ async def handle_reaction(reaction, user):
             submission = praw_operations.request_submission(post_id)
             comments = get_negative_comment_tree(submission)
             embed = wrangler.construct_negative_comment_tree_embed(submission, comments)
-            await message.channel.send(embed=embed)
+            generated_message = await message.channel.send(embed=embed)
+            await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
+
+        # Reset reaction to allow for repeated actions
+        await message.remove_reaction(reaction.emoji, user)
+
+        # This must be run after reaction removal since it will attempt to remove react from nonexistent message
+        if reaction.emoji == constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value:
+            await message.delete()
 
 
 # ============
@@ -292,6 +304,7 @@ async def get_filters(context):
 
 @client.command()
 async def user_report(context, username):
+    print("User Report")
     embed = db_collection_operations.generate_user_report(username)
     await context.send(embed=embed)
 
@@ -308,6 +321,11 @@ async def add_user_comment(context, username, *comment):
         await context.send("Moderator comment added to {}.".format(username))
     else:
         await context.send("There was an issue adding your comment.")
+
+
+@client.command()
+async def shutdown(context):
+    await context.bot.logout()
 
 
 @client.event
