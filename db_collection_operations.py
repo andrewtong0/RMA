@@ -143,16 +143,15 @@ def _get_user_tags(username):
 
 
 # Adds a user comment by upserting user (to ensure they exist) and adding comment
-def add_user_comment(context, username, comment):
+def add_user_comment(message, username, comment_author, comment):
     user_status = add_or_update_user(username)
     if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
-        initiating_message = context.message
         comment_object = {
             "comment": comment,
-            "timestamp": initiating_message.created_at,
+            "timestamp": message.created_at,
             "author": {
-                "uuid": initiating_message.author.id,
-                "name": initiating_message.author.name
+                "uuid": comment_author.id,
+                "name": comment_author.name
             }
         }
         return db.users.find_one_and_update({"username": username}, {"$push": {"mod_comments": comment_object}})

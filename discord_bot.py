@@ -37,6 +37,10 @@ def find_role(roles, roles_to_find):
     return found_roles
 
 
+def get_roles():
+    return client.guilds[0].roles
+
+
 # ==============
 # INITIALIZATION
 # ==============
@@ -122,7 +126,8 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
         followup_message = message_object["followup_message"]
 
     if roles_to_ping:  # TODO: Also take into account the platform for pings
-        found_roles = find_role(client.guilds[0].roles, roles_to_ping)  # TODO: Refactor guilds[0]
+        server_roles = get_roles()
+        found_roles = find_role(server_roles, roles_to_ping)  # TODO: Refactor guilds[0]
 
         # Pings do not work in embeds, so they must be done as a separate, non-embed message
         if found_roles:
@@ -155,6 +160,7 @@ async def send_main_post_message_and_add_reactions(channel, embed, override=Fals
         if override or db_collection_operations.is_post_submission(post_id):
             await message.add_reaction(constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value)
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value)
+        await message.add_reaction(constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value)
     else:
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value)
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value)
@@ -251,7 +257,8 @@ async def handle_reaction(reaction, user):
                 if subreddit == subreddit_and_channels.subreddit:
                     selected_sub_and_ch = subreddit_and_channels
                     break
-            secondary_review_role = find_role(client.guilds[0].roles, [user_preferences.Settings.BOT_SECONDARY_REVIEW_ROLE.value])
+            server_roles = get_roles()
+            secondary_review_role = find_role(server_roles, [user_preferences.Settings.BOT_SECONDARY_REVIEW_ROLE.value])
             flag_message_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_SECONDARY_REVIEW.value, selected_sub_and_ch)
             for channel in flag_message_channels:
                 reviewer_ping = secondary_review_role[0].mention + " " if secondary_review_role is not [] else ""
@@ -268,6 +275,14 @@ async def handle_reaction(reaction, user):
             embed = await wrangler.construct_approve_or_reject_review_embed(message.embeds[0], review_requester, review_fulfiller, is_approved, message.reactions, client.user.id)
 
             await message.channel.send(content=review_requester, embed=embed)
+        elif react_emoji == constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value:
+            embed = message.embeds[0]
+            comment = "[{}]({})".format(embed.description, embed.url)
+            mod_comment = db_collection_operations.add_user_comment(message, embed.author.name, user, comment)
+            if mod_comment:
+                await message.channel.send("Added post to user mod comments.")
+            else:
+                await message.channel.send("Failed to add post to user mod comments.")
 
         # Reset reaction to allow for repeated actions
         if reaction.emoji not in constants.ReactsThatPersist:
@@ -319,7 +334,9 @@ async def get_matches(context, filter_name):
         for match in matches:
             matches_output += match + ", "
         matches_output = matches_output[:-2]  # Remove extra comma and space after last element
-        await context.send("{}: {}".format(filter_name, matches_output))
+        messages_output = wrangler.truncate_message(matches_output)
+        for message in messages_output:
+            await context.send(message)
     else:
         await context.send("There was an issue finding the matches for {}. Verify the specified filter.".format(filter_name))
 
@@ -367,7 +384,7 @@ async def add_user_comment(context, username, *comment):
     for word in comment:
         comment_string += word + " "
     comment_string = comment_string[:-1]  # Remove extra space at end
-    comment_added = db_collection_operations.add_user_comment(context, username, comment_string)
+    comment_added = db_collection_operations.add_user_comment(context.message, username, context.message.author, comment_string)
     if comment_added:
         await context.send("Moderator comment added to {}.".format(username))
     else:
@@ -375,8 +392,29 @@ async def add_user_comment(context, username, *comment):
 
 
 @client.command()
-async def shutdown(context):
-    await context.bot.logout()
+async def subscribe(context, role):
+    server_roles = get_roles()
+    found_roles = find_role(server_roles, [role])
+
+    if not found_roles:
+        await context.channel.send("Failed to find role.")
+
+    for role in found_roles:
+        await context.author.add_roles(role)
+        await context.channel.send("Successfully assigned role.")
+
+
+@client.command()
+async def unsubscribe(context, role):
+    server_roles = get_roles()
+    found_roles = find_role(server_roles, [role])
+
+    if not found_roles:
+        await context.channel.send("Failed to find role.")
+
+    for role in found_roles:
+        await context.author.remove_roles(role)
+        await context.channel.send("Successfully removed role.")
 
 
 @client.event

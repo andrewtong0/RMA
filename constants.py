@@ -54,6 +54,7 @@ class MessageLimitActions(Enum):
 
 
 class CharacterLimits(Enum):
+    REGULAR_MESSAGE = 2000
     EMBED_TITLE = 256
     EMBED_DESCRIPTION = 2048
     EMBED_AUTHOR = 256
@@ -73,6 +74,7 @@ class RedditReactEmojis(Enum):
     SECONDARY_REVIEW_REJECT = "🚫"          # Red "no-entry" sign
     SECONDARY_REVIEW_UPVOTE = "👍"          # Thumbs up
     SECONDARY_REVIEW_DOWNVOTE = "👎"        # Thumbs down
+    ADD_POST_TO_USER_MOD_COMMENTS = "📝"    # Notepad and pencil
 
 
 # Reacts that after clicking, should remove original message
@@ -85,7 +87,8 @@ ReactsThatClearMessage = [
 # Reacts that shouldn't be removed after being clicked
 ReactsThatPersist = [
     RedditReactEmojis.SECONDARY_REVIEW_UPVOTE.value,
-    RedditReactEmojis.SECONDARY_REVIEW_DOWNVOTE.value
+    RedditReactEmojis.SECONDARY_REVIEW_DOWNVOTE.value,
+    RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value
 ]
 
 
