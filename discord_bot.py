@@ -1,6 +1,5 @@
 import asyncio
 import discord
-import re
 from discord.ext import commands
 
 # File imports
@@ -150,7 +149,14 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
 # Override flag since normally to check if post is submission, we query DB, which causes a race condition if post
 # is stored before it can be queried. Override bypasses this check and adds the flair.
 async def send_main_post_message_and_add_reactions(channel, embed, override=False, flag_reaction=True, additional_message=""):
-    message = await channel.send(content=additional_message, embed=embed)
+    # TODO: Make this the only truncation since this feels like double truncation
+    truncated_embed = wrangler.truncate_embed(embed)
+    message = None
+    if len(truncated_embed) + len(additional_message) > constants.CharacterLimits.EMBED_TOTAL_CHARS.value:
+        await channel.send(content=additional_message)
+        message = await channel.send(embed=truncated_embed)
+    else:
+        message = await channel.send(content=additional_message, embed=truncated_embed)
 
     # Flag reaction set to boolean so that it can be overrided to not display in secondary review channels and instead
     # display approve/deny reacts
