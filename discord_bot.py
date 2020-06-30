@@ -1,6 +1,6 @@
-import asyncio
+import aiohttp
 import discord
-from discord.ext import commands
+from discord.ext import tasks, commands
 
 # File imports
 import constants
@@ -89,12 +89,11 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
 # ===================
 
 # Grabs new posts, stores them in the database
+@tasks.loop(minutes=user_preferences.BotConsts.POLL_TIMER.value)
 async def poll_new_posts():
     await client.wait_until_ready()
-    while not client.is_closed():
-        for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
-            await get_new_reddit_posts(10, subreddit_and_channels)
-        await asyncio.sleep(user_preferences.BotConsts.POLL_TIMER.value)
+    for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+        await get_new_reddit_posts(10, subreddit_and_channels)
 
 
 # Sends message to Discord channel depending on the platform type and notification type
@@ -430,7 +429,8 @@ async def on_reaction_add(reaction, user):
 
 
 # Initialize and run Discord bot
-client.loop.create_task(poll_new_posts())
+poll_new_posts.add_exception_type(aiohttp.client.ClientOSError)
+poll_new_posts.start()
 if environment_variables.DEV_MODE:
     client.run(environment_variables.DEV_DISCORD_BOT_TOKEN)
 else:
