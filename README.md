@@ -8,3 +8,6 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of functiona
 - **User Report System:** Generate a user report based on the posts found within the database, add moderator comments or links to previous posts to their user report.
 - **Intuitive Reacts:** Click reacts generated on posts and comments to generate user reports, get a comment tree of all negative comments on a post, flag a post or comment for secondary review, or add a post to a the user's report.
 - **Secondary Review:** Flag a post to placed under secondary review - the post/comment will be sent to a separate channel and will ping anyone with the associated role. It can then be either approved or rejected, which will ping the user that requested the secondary review so that they know hwo to proceed.
+
+## Roadmap:
+- **Standalone Client?** Potential for a standalone client to manage this, external from Discord.
