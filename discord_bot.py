@@ -306,6 +306,13 @@ async def handle_reaction(reaction, user):
 # Add match to filter
 @client.command()
 async def add_match(context, filter_name, new_match):
+    # If a filter should also update the automoderator wiki, do it here in addition to updating database
+    if filter_name in user_preferences.SyncedFilters:
+        praw_operations.update_automoderator_page(
+            filter_name,
+            new_match,
+            constants.RedditFilterOperationTypes.ADD.value
+        )
     add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditFilterOperationTypes.ADD.value)
     if add_result:
         await context.send("{} successfully added to {}".format(new_match, filter_name))

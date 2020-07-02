@@ -1,9 +1,10 @@
-import time
+import re
 import praw
 from pymongo import MongoClient
 from datetime import datetime
 import constants
 import environment_variables
+import user_preferences
 
 
 # This file provides two public functions, get_and_store_posts and get_and_store_unstored to query for new posts with
@@ -11,10 +12,13 @@ import environment_variables
 
 
 # PRAW setup
-reddit = praw.Reddit(client_id=str(environment_variables.REDDIT_CLIENT_ID),
-                     client_secret=str(environment_variables.REDDIT_CLIENT_SECRET),
-                     user_agent=str(environment_variables.REDDIT_USER_AGENT))
-reddit.read_only = True
+reddit = praw.Reddit(client_id=environment_variables.REDDIT_CLIENT_ID,
+                     client_secret=environment_variables.REDDIT_CLIENT_SECRET,
+                     user_agent=environment_variables.REDDIT_USER_AGENT,
+                     username=environment_variables.REDDIT_USER_USERNAME,
+                     password=environment_variables.REDDIT_USER_PASSWORD)
+print("PRAW Logged in as: " + str(reddit.user.me()))
+reddit.read_only = False
 
 
 # Database setup
@@ -208,3 +212,43 @@ def request_sorted_comments(submission):
     # Remove comments that have been deleted (i.e. no author)
     tidied_list = [comment for comment in sorted_comments if comment.author and comment.author.name]
     return tidied_list
+
+
+def update_automoderator_page(filter_name, new_match, action):
+    if user_preferences.HAS_MOD:
+        automod_wikipage = reddit.subreddit(environment_variables.PRIORITY_SUBREDDIT).wiki["config/automoderator"]
+        automod_filters = automod_wikipage.content_md.split(user_preferences.FilterSeparator)
+        queried_filter_and_index = get_automoderator_filter(automod_filters, filter_name)
+        if queried_filter_and_index is not None:
+            updated_filter = update_automoderator_filter_matches(
+                queried_filter_and_index["filter"],
+                new_match,
+                action
+            )
+            automod_filters[queried_filter_and_index["index"]] = updated_filter
+            updated_automod_filters = user_preferences.FilterSeparator.join(automod_filters)
+            automod_wikipage.edit(content=updated_automod_filters)
+
+
+def get_automoderator_filter(automod_filters, filter_name):
+    for index, automod_filter in enumerate(automod_filters, 0):
+        if filter_name.lower() in automod_filter.lower():
+            return {"filter": automod_filter, "index": index}
+    return None
+
+
+# TODO: Refactor to generalize and get matches, even if form is not in an array with brackets []
+# Returns updated filter with new matches
+def update_automoderator_filter_matches(automod_filter, new_match, action):
+    # Find list of matches between brackets
+    matches = re.search(r"\[(.*)\]", automod_filter).group(1)
+    if action == constants.RedditFilterOperationTypes.ADD.value:
+        matches += ", {}".format(new_match)
+    # TODO: Implement removal
+    elif action == constants.RedditFilterOperationTypes.REMOVE.value:
+        print("not implemented")
+    # Re-add brackets since they are removed via search
+    matches = "[{}]".format(matches)
+
+    new_filter = re.sub(r"\[(.*)\]", matches, automod_filter)
+    return new_filter
