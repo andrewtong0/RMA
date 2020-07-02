@@ -214,8 +214,9 @@ def request_sorted_comments(submission):
     return tidied_list
 
 
-def update_automoderator_page(filter_name, new_match, action):
+def update_automoderator_page(synced_filter, new_match, action):
     if user_preferences.HAS_MOD:
+        filter_name = synced_filter["filter_name"]
         automod_wikipage = reddit.subreddit(environment_variables.PRIORITY_SUBREDDIT).wiki["config/automoderator"]
         automod_filters = automod_wikipage.content_md.split(user_preferences.FilterSeparator)
         queried_filter_and_index = get_automoderator_filter(automod_filters, filter_name)
@@ -227,7 +228,7 @@ def update_automoderator_page(filter_name, new_match, action):
             )
             automod_filters[queried_filter_and_index["index"]] = updated_filter
             updated_automod_filters = user_preferences.FilterSeparator.join(automod_filters)
-            automod_wikipage.edit(content=updated_automod_filters)
+            automod_wikipage.edit(content=updated_automod_filters, reason=synced_filter["filter_log_reason"])
 
 
 def get_automoderator_filter(automod_filters, filter_name):
