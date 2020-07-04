@@ -11,3 +11,4 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of functiona
 
 ## Roadmap:
 - **Standalone Client?** Potential for a standalone client to manage this, external from Discord.
+- **Fix Bot Errors:** Currently the bot stops posting intermittently without posting errors to console; looking into fixing this.
