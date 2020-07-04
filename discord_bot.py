@@ -437,7 +437,7 @@ async def on_reaction_add(reaction, user):
 
 
 # Initialize and run Discord bot
-poll_new_posts.add_exception_type(aiohttp.client.ClientOSError)
+# poll_new_posts.add_exception_type(aiohttp.client.ClientOSError)
 poll_new_posts.start()
 if environment_variables.DEV_MODE:
     client.run(environment_variables.DEV_DISCORD_BOT_TOKEN)
