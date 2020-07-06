@@ -201,8 +201,8 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT, subreddit_name)
     new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
     if new_posts:
-        print(str(len(new_posts)) + " new posts found.")
-        print(new_posts)
+        print(str(len(new_posts)) + " new posts found on {}".format(subreddit_name))
+        # print(new_posts)
     posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
         await actions_on_posts(post_and_matches, subreddit_and_channels)
@@ -437,7 +437,7 @@ async def on_reaction_add(reaction, user):
 
 
 # Initialize and run Discord bot
-# poll_new_posts.add_exception_type(aiohttp.client.ClientOSError)
+poll_new_posts.add_exception_type(aiohttp.client.ClientOSError)
 poll_new_posts.start()
 if environment_variables.DEV_MODE:
     client.run(environment_variables.DEV_DISCORD_BOT_TOKEN)
