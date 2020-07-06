@@ -93,7 +93,14 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
 async def poll_new_posts():
     await client.wait_until_ready()
     for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+        await send_health_message(subreddit_and_channels.status_channel_ids)
         await get_new_reddit_posts(10, subreddit_and_channels)
+
+
+async def send_health_message(status_channel_ids):
+    for status_channel_id in status_channel_ids:
+        current_channel = get_channel_from_id(status_channel_id)
+        await current_channel.send("Bot querying for posts...")
 
 
 # Sends message to Discord channel depending on the platform type and notification type
