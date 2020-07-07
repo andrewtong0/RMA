@@ -55,8 +55,14 @@ db_filters = set_filters()
 # Login status + presence flair
 @client.event
 async def on_ready():
-    print('Logged in as', client.user)
+    print('Discord Logged in as', client.user)
     await client.change_presence(activity=discord.Game(name='***REMOVED***'))
+    set_exceptions()
+    await poll_new_posts.start()
+
+
+def set_exceptions():
+    poll_new_posts.add_exception_type(StopIteration)
 
 
 def get_channel_from_id(channel_id):
@@ -443,8 +449,6 @@ async def on_reaction_add(reaction, user):
 
 
 # Initialize and run Discord bot
-poll_new_posts.add_exception_type(StopIteration)
-poll_new_posts.start()
 if environment_variables.DEV_MODE:
     client.run(environment_variables.DEV_DISCORD_BOT_TOKEN)
 else:
