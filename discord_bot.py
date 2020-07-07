@@ -1,4 +1,4 @@
-import aiohttp
+import datetime
 import discord
 from discord.ext import tasks, commands
 
@@ -91,7 +91,6 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
 # Grabs new posts, stores them in the database
 @tasks.loop(minutes=user_preferences.BotConsts.POLL_TIMER.value)
 async def poll_new_posts():
-    await client.wait_until_ready()
     for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
         await send_health_message(subreddit_and_channels.status_channel_ids)
         await get_new_reddit_posts(10, subreddit_and_channels)
@@ -208,7 +207,7 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT, subreddit_name)
     new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
     if new_posts:
-        print(str(len(new_posts)) + " new posts found on {}".format(subreddit_name))
+        print("{} / {} new posts found on {}".format(datetime.datetime.now(), str(len(new_posts)), subreddit_name))
         # print(new_posts)
     posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
@@ -444,7 +443,7 @@ async def on_reaction_add(reaction, user):
 
 
 # Initialize and run Discord bot
-poll_new_posts.add_exception_type(aiohttp.client.ClientOSError)
+poll_new_posts.add_exception_type(StopIteration)
 poll_new_posts.start()
 if environment_variables.DEV_MODE:
     client.run(environment_variables.DEV_DISCORD_BOT_TOKEN)
