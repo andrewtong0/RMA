@@ -1,4 +1,5 @@
 import datetime
+import prawcore
 import discord
 from discord.ext import tasks, commands
 
@@ -63,6 +64,7 @@ async def on_ready():
 
 def set_exceptions():
     poll_new_posts.add_exception_type(StopIteration)
+    poll_new_posts.add_exception_type(prawcore.exceptions.NotFound)
 
 
 def get_channel_from_id(channel_id):

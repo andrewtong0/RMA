@@ -36,7 +36,11 @@ def truncate_embed_string_if_necessary(string, num_chars_so_far, string_char_lim
     truncate_string_len = len(truncate_string)
 
     if exceeds_embed_char_limit(num_chars_so_far + string_len) or string_len > string_char_limit:
-        string = truncate_string_on_lower_limit(string, num_chars_so_far - truncate_string_len, string_char_limit - truncate_string_len)
+        string = truncate_string_on_lower_limit(
+            string,
+            constants.CharacterLimits.EMBED_TOTAL_CHARS.value - num_chars_so_far - truncate_string_len,
+            string_char_limit - truncate_string_len
+        )
         string += truncate_string
     return string
 
