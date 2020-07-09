@@ -34,7 +34,7 @@ def _find_reddit_matches_for_post(filters, post):
             elif content_filter["type"] == constants.RedditFilterTypes.POSTS.value:
                 for regex_phrase in content_filter["matches"]:
                     # Submissions also have titles, so we should check the title in addition to the content of the post
-                    if post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value:
+                    if post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value:
                         if re.match(regex_phrase, post["title"]):
                             matches_for_post.append({"filter": content_filter, "flagged_content": regex_phrase,
                                                      "action": content_filter["action"]})
@@ -42,7 +42,7 @@ def _find_reddit_matches_for_post(filters, post):
                         matches_for_post.append({"filter": content_filter, "flagged_content": regex_phrase,
                                                  "action": content_filter["action"]})
             elif content_filter["type"] == constants.RedditFilterTypes.MEDIA_SOURCE.value:
-                if post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value and post["extra_info"]["media_source"] in content_filter["matches"]:
+                if post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value and post["extra_info"]["media_source"] in content_filter["matches"]:
                     # TODO: Refactor the flagged_content and make it more abstract to instead say the title of the channel rather than the link as the flagged match
                     matches_for_post.append({"filter": content_filter,
                                              "flagged_content": post["extra_info"]["media_source"],

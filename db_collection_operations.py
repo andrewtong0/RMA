@@ -23,9 +23,9 @@ def attempt_add_or_remove_match(filter_name, new_match, operation_type):
         attempt_add_or_remove_user_tag(new_match, filter_name, operation_type)
 
     # If adding match, push value, otherwise, pull out value
-    if operation_type == constants.RedditFilterOperationTypes.ADD.value and new_match not in queried_matches:
+    if operation_type == constants.RedditOperationTypes.ADD.value and new_match not in queried_matches:
         return db.filters.find_one_and_update(filter_name_object, {"$push": {"matches": new_match}})
-    elif operation_type == constants.RedditFilterOperationTypes.REMOVE.value and new_match in queried_matches:
+    elif operation_type == constants.RedditOperationTypes.REMOVE.value and new_match in queried_matches:
         return db.filters.find_one_and_update(filter_name_object, {"$pull": {"matches": new_match}})
     else:
         # If there was an issue or if match was not in/already in matches
@@ -120,18 +120,18 @@ def _add_or_update_user_db(username, userdata):
 def attempt_add_or_remove_user_tag(username, role_tag, operation_type):
     user_status = add_or_update_user(username)
     if user_status != constants.RedditUserUpsertStatus.SUCCESS.value:
-        operation_type = constants.RedditFilterOperationTypes.ERROR.value
+        operation_type = constants.RedditOperationTypes.ERROR.value
     return _add_or_remove_user_tag(username, role_tag, operation_type)
 
 
 # Adds ore removes tag on user
 def _add_or_remove_user_tag(username, role_tag, operation_type):
     user_tags = _get_user_tags(username)
-    if operation_type == constants.RedditFilterOperationTypes.ADD.value and role_tag not in user_tags:
+    if operation_type == constants.RedditOperationTypes.ADD.value and role_tag not in user_tags:
         db.users.update({"username": username}, {"$push": {"tags": role_tag}})
-    elif operation_type == constants.RedditFilterOperationTypes.REMOVE.value and role_tag in user_tags:
+    elif operation_type == constants.RedditOperationTypes.REMOVE.value and role_tag in user_tags:
         db.users.update({"username": username}, {"$pull": {"tags": role_tag}})
-    # This is hit in error case (RedditFilterOperationTypes.ERROR)
+    # This is hit in error case (RedditOperationTypes.ERROR)
     else:
         return None
 
@@ -172,5 +172,5 @@ def is_post_submission(post_id):
     post = get_post(post_id)
     # If a post is found, reverify that it is a submission (although this is a double check since we're querying the submissions collection anyways)
     if post is not None:
-        return post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+        return post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value
     return False

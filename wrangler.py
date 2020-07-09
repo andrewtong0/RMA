@@ -9,7 +9,7 @@ def generate_reddit_user_link(username):
 
 
 def is_post_submission(post):
-    return post["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+    return post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value
 
 
 def post_utc_to_timestamp(post):
@@ -155,7 +155,8 @@ def construct_reddit_message(subreddit, post, triggered_matches):
         filter_name_matches += " | " + match["filter"]["name"] + " "
 
     # Footer message should contain concatenation of filters hit, and post ID
-    footer_content = "r/" + subreddit + " | " + filter_name_matches + " | " + constants.StringConstants.POST_ID.value + post["_id"]
+    id_prefix = constants.StringConstants.SUBMISSION_ID.value if is_submission_post else constants.StringConstants.COMMENT_ID.value
+    footer_content = "r/" + subreddit + " | " + filter_name_matches + " | " + id_prefix + post["_id"]
 
     # embed_thumbnail_link = constants.RedditEmbedConsts.icon.value  # Looks a bit ugly being so large and redundant
     # if filter_action == constants.FilterActions.REMOVE:

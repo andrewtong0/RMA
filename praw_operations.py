@@ -16,7 +16,8 @@ reddit = praw.Reddit(client_id=environment_variables.REDDIT_CLIENT_ID,
                      client_secret=environment_variables.REDDIT_CLIENT_SECRET,
                      user_agent=environment_variables.REDDIT_USER_AGENT,
                      username=environment_variables.REDDIT_USER_USERNAME,
-                     password=environment_variables.REDDIT_USER_PASSWORD)
+                     password=environment_variables.REDDIT_USER_PASSWORD,
+                     redirect_uri="http://localhost:8080")
 print("PRAW Logged in as: " + str(reddit.user.me()))
 reddit.read_only = False
 
@@ -29,9 +30,9 @@ db = client.reddit
 # Gets the raw PRAW generator, and returns a list of submissions or comments
 def _get_posts(num_posts, posts_type, subreddit_name):
     subreddit = reddit.subreddit(subreddit_name)
-    if posts_type == constants.DbEntry.REDDIT_SUBMISSION:
+    if posts_type == constants.PostTypes.REDDIT_SUBMISSION:
         return list(subreddit.new(limit=num_posts))
-    elif posts_type == constants.DbEntry.REDDIT_COMMENT:
+    elif posts_type == constants.PostTypes.REDDIT_COMMENT:
         return list(subreddit.comments(limit=num_posts))
 
 
@@ -41,7 +42,7 @@ def _construct_entry_object(subreddit_name, post, post_type):
     timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
     content = ""
     if post.author:
-        if post_type == constants.DbEntry.REDDIT_SUBMISSION:
+        if post_type == constants.PostTypes.REDDIT_SUBMISSION:
             if post.selftext:
                 content = post.selftext
             else:
@@ -75,7 +76,7 @@ def _construct_entry_object(subreddit_name, post, post_type):
                 }
             }
             return submission_entry
-        elif post_type == constants.DbEntry.REDDIT_COMMENT:
+        elif post_type == constants.PostTypes.REDDIT_COMMENT:
             # Substring is taken since IDs are prefixed with t3_ or t1_ depending on depth, but is irrelevant to us
             # and makes queries harder
             submission_id = post.link_id[3:]
@@ -121,19 +122,19 @@ def _store_entry_objects(entry_objects, posts_type):
 
 # Stores a single entry object into the database
 def _store_entry_object_helper(entry_object, post_type):
-    if post_type == constants.DbEntry.REDDIT_SUBMISSION:
+    if post_type == constants.PostTypes.REDDIT_SUBMISSION:
         db.submissions.insert_one(entry_object)
-    elif post_type == constants.DbEntry.REDDIT_COMMENT:
+    elif post_type == constants.PostTypes.REDDIT_COMMENT:
         db.comments.insert_one(entry_object)
 
 
 # Check if post is already in database, return true if it is, false if not
 def _is_post_in_db(entry_object, post_type):
     id_object = {"_id": entry_object["_id"]}
-    queried_post = db.submissions.find_one(id_object) if post_type == constants.DbEntry.REDDIT_SUBMISSION else db.comments.find_one(id_object)
-    if post_type == constants.DbEntry.REDDIT_SUBMISSION and queried_post is None:
+    queried_post = db.submissions.find_one(id_object) if post_type == constants.PostTypes.REDDIT_SUBMISSION else db.comments.find_one(id_object)
+    if post_type == constants.PostTypes.REDDIT_SUBMISSION and queried_post is None:
         return False
-    elif post_type == constants.DbEntry.REDDIT_COMMENT and queried_post is None:
+    elif post_type == constants.PostTypes.REDDIT_COMMENT and queried_post is None:
         return False
     return True
 
@@ -197,8 +198,11 @@ def determine_priority_action(post_and_matches):
     return priority_action
 
 
-def request_submission(post_id):
-    return reddit.submission(id=post_id)
+def request_post(post_id, post_type):
+    if post_type == constants.PostTypes.REDDIT_SUBMISSION.value:
+        return reddit.submission(id=post_id)
+    elif post_type == constants.PostTypes.REDDIT_COMMENT.value:
+        return reddit.comment(post_id)
 
 
 def request_sorted_comments(submission):
@@ -243,13 +247,25 @@ def get_automoderator_filter(automod_filters, filter_name):
 def update_automoderator_filter_matches(automod_filter, new_match, action):
     # Find list of matches between brackets
     matches = re.search(r"\[(.*)\]", automod_filter).group(1)
-    if action == constants.RedditFilterOperationTypes.ADD.value:
+    if action == constants.RedditOperationTypes.ADD.value:
         matches += ", {}".format(new_match)
     # TODO: Implement removal
-    elif action == constants.RedditFilterOperationTypes.REMOVE.value:
+    elif action == constants.RedditOperationTypes.REMOVE.value:
         print("not implemented")
     # Re-add brackets since they are removed via search
     matches = "[{}]".format(matches)
 
     new_filter = re.sub(r"\[(.*)\]", matches, automod_filter)
     return new_filter
+
+
+def action_on_post(post_id, action, post_type):
+    post_instance = request_post(post_id, post_type)
+    if action == constants.RedditOperationTypes.APPROVE.value:
+        post_instance.mod.approve()
+    elif action == constants.RedditOperationTypes.REMOVE.value:
+        post_instance.mod.remove()
+    elif action == constants.RedditOperationTypes.LOCK.value:
+        post_instance.mod.lock()
+    elif action == constants.RedditOperationTypes.UNLOCK.value:
+        post_instance.mod.unlock()

@@ -121,12 +121,12 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
     followup_message = ""  # Used if there are differences in schema where something else needs to be added
     channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_ALL.value, subreddit_and_channels)
     ping_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_PINGS.value, subreddit_and_channels)
-    is_post_submission = reddit_object["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value
+    is_post_submission = reddit_object["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value
 
     # Decided not to use is_post_submission here for clarity and in case additional post types are added later
-    if reddit_object["post_type"] == constants.DbEntry.REDDIT_SUBMISSION.value:
+    if reddit_object["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value:
         channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_POSTS.value, subreddit_and_channels)
-    elif reddit_object["post_type"] == constants.DbEntry.REDDIT_COMMENT.value:
+    elif reddit_object["post_type"] == constants.PostTypes.REDDIT_COMMENT.value:
         channels += get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_COMMENTS.value, subreddit_and_channels)
     channels = list(dict.fromkeys(channels))  # Filter duplicates from list (similar to sets)
 
@@ -172,7 +172,7 @@ async def send_main_post_message_and_add_reactions(channel, embed, override=Fals
         message = await channel.send(content=additional_message, embed=truncated_embed)
 
     # Flag reaction set to boolean so that it can be overrided to not display in secondary review channels and instead
-    # display approve/deny reacts
+    #     display approve/deny reacts
     if flag_reaction:
         await message.add_reaction(constants.RedditReactEmojis.GENERATE_USER_REPORT.value)
         post_id = get_embed_post_id(embed)
@@ -180,6 +180,9 @@ async def send_main_post_message_and_add_reactions(channel, embed, override=Fals
             await message.add_reaction(constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value)
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value)
         await message.add_reaction(constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value)
+        await message.add_reaction(constants.RedditReactEmojis.POST_APPROVE.value)
+        await message.add_reaction(constants.RedditReactEmojis.POST_REMOVE.value)
+        await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
     else:
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value)
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value)
@@ -211,8 +214,8 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     db_filters = set_filters()
 
     subreddit_name = subreddit_and_channels.subreddit
-    new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_SUBMISSION, subreddit_name)
-    new_comments = praw_operations.get_and_store_unstored(num_posts, constants.DbEntry.REDDIT_COMMENT, subreddit_name)
+    new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.PostTypes.REDDIT_SUBMISSION, subreddit_name)
+    new_comments = praw_operations.get_and_store_unstored(num_posts, constants.PostTypes.REDDIT_COMMENT, subreddit_name)
     new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
     if new_posts:
         print("{} / {} new posts found on {}".format(datetime.datetime.now(), str(len(new_posts)), subreddit_name))
@@ -244,8 +247,20 @@ def get_negative_comment_tree(submission):
 def get_embed_post_id(embed):
     # TODO: Fix this, it's a bit hacky right now to get the Post ID by partioning - if any text is added after the post ID, it gets messed up
     footer = embed.footer.text
-    post_id = footer.partition(constants.StringConstants.POST_ID.value)[2]
+    submission_id_prefix = constants.StringConstants.SUBMISSION_ID.value
+    comment_id_prefix = constants.StringConstants.COMMENT_ID.value
+    post_id = footer.partition(submission_id_prefix) if submission_id_prefix in footer else footer.partition(comment_id_prefix)
+    post_id = post_id[2]
     return post_id
+
+
+# Returns embed post type (e.g. post/submission)
+def get_embed_post_type(embed):
+    footer = embed.footer.text
+    if constants.StringConstants.SUBMISSION_ID.value in footer:
+        return constants.PostTypes.REDDIT_SUBMISSION.value
+    elif constants.StringConstants.COMMENT_ID.value in footer:
+        return constants.PostTypes.REDDIT_COMMENT.value
 
 
 # Splits initial reaction to appropriate call
@@ -254,21 +269,25 @@ async def handle_reaction(reaction, user):
     react_emoji = reaction.emoji
     # If the reaction is not from bot and the message being reacted to is a bot message
     if check_user_is_not_bot(user) and check_message_is_from_bot(reaction.message):
+        post_type = get_embed_post_type(message.embeds[0])
+        message_main_embed = message.embeds[0]
+
         if react_emoji == constants.RedditReactEmojis.GENERATE_USER_REPORT.value:
-            embed = db_collection_operations.generate_user_report(message.embeds[0].author.name)
+            embed = db_collection_operations.generate_user_report(message_main_embed.author.name)
             generated_message = await message.channel.send(embed=embed)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
         elif react_emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
-            message_embed = reaction.message.embeds[0]
+            message_embed = message_main_embed
             post_id = get_embed_post_id(message_embed)
-            submission = praw_operations.request_submission(post_id)
+            submission = praw_operations.request_post(post_id, constants.PostTypes.REDDIT_SUBMISSION)
             comments = get_negative_comment_tree(submission)
             embed = wrangler.construct_negative_comment_tree_embed(submission, comments)
             generated_message = await message.channel.send(embed=embed)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
+        # Sends post to secondary review channel
         elif react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value:
-            original_embed = message.embeds[0]
+            original_embed = message_main_embed
             # Extracts subreddit from footer
             subreddit = original_embed.footer.text.partition("r/")[2].partition(" |")[0]  # TODO: Refactor into constants or clean up
             selected_sub_and_ch = None
@@ -294,6 +313,7 @@ async def handle_reaction(reaction, user):
             embed = await wrangler.construct_approve_or_reject_review_embed(message.embeds[0], review_requester, review_fulfiller, is_approved, message.reactions, client.user.id)
 
             await message.channel.send(content=review_requester, embed=embed)
+        # Adds post to a user's moderator comments
         elif react_emoji == constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value:
             embed = message.embeds[0]
             comment = "[{}]({})".format(embed.description, embed.url)
@@ -302,6 +322,26 @@ async def handle_reaction(reaction, user):
                 await message.channel.send("Added post to user mod comments.")
             else:
                 await message.channel.send("Failed to add post to user mod comments.")
+        # Lock post
+        elif react_emoji == constants.RedditReactEmojis.POST_LOCK.value:
+            post_id = get_embed_post_id(message_main_embed)
+            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.LOCK.value, post_type)
+            await message.remove_reaction(react_emoji, client.user)
+            await message.add_reaction(constants.RedditReactEmojis.POST_UNLOCK.value)
+        # Unlock post
+        elif react_emoji == constants.RedditReactEmojis.POST_UNLOCK.value:
+            post_id = get_embed_post_id(message_main_embed)
+            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.UNLOCK.value, post_type)
+            await message.remove_reaction(react_emoji, client.user)
+            await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
+        # Approve post
+        elif react_emoji == constants.RedditReactEmojis.POST_REMOVE.value:
+            post_id = get_embed_post_id(message_main_embed)
+            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
+        # Remove post
+        elif react_emoji == constants.RedditReactEmojis.POST_APPROVE.value:
+            post_id = get_embed_post_id(message_main_embed)
+            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.APPROVE.value, post_type)
 
         # Reset reaction to allow for repeated actions
         if reaction.emoji not in constants.ReactsThatPersist:
@@ -320,7 +360,7 @@ async def handle_reaction(reaction, user):
 # Add match to filter
 @client.command()
 async def add_match(context, filter_name, new_match):
-    add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditFilterOperationTypes.ADD.value)
+    add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditOperationTypes.ADD.value)
     if add_result:
         # If a filter should also update the automoderator wiki, do it here in addition to updating database
         for synced_filter in user_preferences.SyncedFilters:
@@ -328,7 +368,7 @@ async def add_match(context, filter_name, new_match):
                 praw_operations.update_automoderator_page(
                     synced_filter,
                     new_match,
-                    constants.RedditFilterOperationTypes.ADD.value
+                    constants.RedditOperationTypes.ADD.value
                 )
         await context.send("{} successfully added to {}".format(new_match, filter_name))
     else:
@@ -345,7 +385,7 @@ async def bulk_add_match(context, filter_name, *matches):
 
 @client.command()
 async def remove_match(context, filter_name, match_to_remove):
-    remove_result = db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditFilterOperationTypes.REMOVE.value)
+    remove_result = db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditOperationTypes.REMOVE.value)
     if remove_result:
         await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
     else:
@@ -447,7 +487,8 @@ async def unsubscribe(context, role):
 @client.event
 async def on_reaction_add(reaction, user):
     await handle_reaction(reaction, user)
-    # print(reaction)
+    if environment_variables.DEV_MODE:
+        print("React interacted with: {}".format(reaction))
 
 
 # Initialize and run Discord bot

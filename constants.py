@@ -11,7 +11,7 @@ class Platforms(Enum):
 
 
 # Enumeration to store entry types
-class DbEntry(Enum):
+class PostTypes(Enum):
     REDDIT_SUBMISSION = "reddit_submission"
     REDDIT_COMMENT = "reddit_comment"
 
@@ -36,9 +36,12 @@ class RedditUserUpsertStatus(Enum):
     MISSING = "missing"
 
 
-class RedditFilterOperationTypes(Enum):
+class RedditOperationTypes(Enum):
     ADD = "add"
+    APPROVE = "approve"
     REMOVE = "remove"
+    LOCK = "lock"
+    UNLOCK = "unlock"
     ERROR = "error"
 
 
@@ -75,6 +78,10 @@ class RedditReactEmojis(Enum):
     SECONDARY_REVIEW_UPVOTE = "👍"          # Thumbs up
     SECONDARY_REVIEW_DOWNVOTE = "👎"        # Thumbs down
     ADD_POST_TO_USER_MOD_COMMENTS = "📝"    # Notepad and pencil
+    POST_LOCK = "🔒"                        # Locked lock
+    POST_UNLOCK = "🔓"                      # Unlocked lock
+    POST_APPROVE = "☑"                     # Blue check mark
+    POST_REMOVE = "🗑️"                     # Wastebasket
 
 
 # Reacts that after clicking, should remove original message
@@ -86,9 +93,12 @@ ReactsThatClearMessage = [
 
 # Reacts that shouldn't be removed after being clicked
 ReactsThatPersist = [
+    RedditReactEmojis.SECONDARY_REVIEW_FLAG.value,
     RedditReactEmojis.SECONDARY_REVIEW_UPVOTE.value,
     RedditReactEmojis.SECONDARY_REVIEW_DOWNVOTE.value,
-    RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value
+    RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value,
+    RedditReactEmojis.POST_APPROVE.value,
+    RedditReactEmojis.POST_REMOVE.value
 ]
 
 
@@ -117,7 +127,8 @@ class BotAuthorDetails(Enum):
 
 
 class StringConstants(Enum):
-    POST_ID = "Post ID: "
+    SUBMISSION_ID = "Submission ID: "
+    COMMENT_ID = "Comment ID: "
     STRING_POST = "Post"
     STRING_COMMENT = "Comment"
     TIMESTAMP_TITLE = "Timestamp"
