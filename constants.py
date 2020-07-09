@@ -101,6 +101,14 @@ ReactsThatPersist = [
     RedditReactEmojis.POST_REMOVE.value
 ]
 
+# Reacts that require mod status on the subreddit
+ReactsThatRequireMod = [
+    RedditReactEmojis.POST_APPROVE.value,
+    RedditReactEmojis.POST_REMOVE.value,
+    RedditReactEmojis.POST_LOCK.value,
+    RedditReactEmojis.POST_UNLOCK.value
+]
+
 
 class RedditEmbedConsts(Enum):
     post_colour = 0xc77d00

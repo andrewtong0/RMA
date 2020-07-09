@@ -180,9 +180,10 @@ async def send_main_post_message_and_add_reactions(channel, embed, override=Fals
             await message.add_reaction(constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value)
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value)
         await message.add_reaction(constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value)
-        await message.add_reaction(constants.RedditReactEmojis.POST_APPROVE.value)
-        await message.add_reaction(constants.RedditReactEmojis.POST_REMOVE.value)
-        await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
+        if environment_variables.HAS_MOD:
+            await message.add_reaction(constants.RedditReactEmojis.POST_APPROVE.value)
+            await message.add_reaction(constants.RedditReactEmojis.POST_REMOVE.value)
+            await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
     else:
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value)
         await message.add_reaction(constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value)
@@ -322,26 +323,27 @@ async def handle_reaction(reaction, user):
                 await message.channel.send("Added post to user mod comments.")
             else:
                 await message.channel.send("Failed to add post to user mod comments.")
-        # Lock post
-        elif react_emoji == constants.RedditReactEmojis.POST_LOCK.value:
-            post_id = get_embed_post_id(message_main_embed)
-            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.LOCK.value, post_type)
-            await message.remove_reaction(react_emoji, client.user)
-            await message.add_reaction(constants.RedditReactEmojis.POST_UNLOCK.value)
-        # Unlock post
-        elif react_emoji == constants.RedditReactEmojis.POST_UNLOCK.value:
-            post_id = get_embed_post_id(message_main_embed)
-            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.UNLOCK.value, post_type)
-            await message.remove_reaction(react_emoji, client.user)
-            await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
-        # Approve post
-        elif react_emoji == constants.RedditReactEmojis.POST_REMOVE.value:
-            post_id = get_embed_post_id(message_main_embed)
-            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
-        # Remove post
-        elif react_emoji == constants.RedditReactEmojis.POST_APPROVE.value:
-            post_id = get_embed_post_id(message_main_embed)
-            praw_operations.action_on_post(post_id, constants.RedditOperationTypes.APPROVE.value, post_type)
+        elif environment_variables.HAS_MOD and react_emoji in constants.ReactsThatRequireMod:
+            # Lock post
+            if react_emoji == constants.RedditReactEmojis.POST_LOCK.value:
+                post_id = get_embed_post_id(message_main_embed)
+                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.LOCK.value, post_type)
+                await message.remove_reaction(react_emoji, client.user)
+                await message.add_reaction(constants.RedditReactEmojis.POST_UNLOCK.value)
+            # Unlock post
+            elif react_emoji == constants.RedditReactEmojis.POST_UNLOCK.value:
+                post_id = get_embed_post_id(message_main_embed)
+                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.UNLOCK.value, post_type)
+                await message.remove_reaction(react_emoji, client.user)
+                await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
+            # Approve post
+            elif react_emoji == constants.RedditReactEmojis.POST_REMOVE.value:
+                post_id = get_embed_post_id(message_main_embed)
+                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
+            # Remove post
+            elif react_emoji == constants.RedditReactEmojis.POST_APPROVE.value:
+                post_id = get_embed_post_id(message_main_embed)
+                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.APPROVE.value, post_type)
 
         # Reset reaction to allow for repeated actions
         if reaction.emoji not in constants.ReactsThatPersist:

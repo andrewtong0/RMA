@@ -219,7 +219,7 @@ def request_sorted_comments(submission):
 
 
 def update_automoderator_page(synced_filter, new_match, action):
-    if user_preferences.HAS_MOD:
+    if environment_variables.HAS_MOD:
         filter_name = synced_filter["filter_name"]
         automod_wikipage = reddit.subreddit(environment_variables.PRIORITY_SUBREDDIT).wiki["config/automoderator"]
         automod_filters = automod_wikipage.content_md.split(user_preferences.FilterSeparator)
