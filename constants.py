@@ -155,6 +155,12 @@ class RedditDiscordChannelTypes(Enum):
     RD_CHANNELTYPE_SECONDARY_REVIEW = "rd_secondary_review"
 
 
+class BotHealthMessages(Enum):
+    POLLING_START = "Polling loop task has started."
+    POLLING_UP = "Bot querying for posts..."
+    TASK_FAILED_AND_RESTART = "An internal loop task has failed. Attempting to restart..."
+
+
 # Currently only works with 1 word strings (e.g. links) with whitespace checks
 def create_regex_string(regex_matchers):
     return ".*((" + ")|(".join(regex_matchers) + ")).*"

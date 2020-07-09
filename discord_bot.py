@@ -59,6 +59,7 @@ async def on_ready():
     print('Discord Logged in as', client.user)
     await client.change_presence(activity=discord.Game(name='***REMOVED***'))
     set_exceptions()
+    await send_health_message(constants.BotHealthMessages.POLLING_START.value)
     await poll_new_posts.start()
 
 
@@ -99,15 +100,27 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
 # Grabs new posts, stores them in the database
 @tasks.loop(minutes=user_preferences.BotConsts.POLL_TIMER.value)
 async def poll_new_posts():
+    await send_health_message(constants.BotHealthMessages.POLLING_UP.value)
+    print(poll_new_posts.next_iteration)
     for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
-        await send_health_message(subreddit_and_channels.status_channel_ids)
         await get_new_reddit_posts(10, subreddit_and_channels)
 
 
-async def send_health_message(status_channel_ids):
-    for status_channel_id in status_channel_ids:
-        current_channel = get_channel_from_id(status_channel_id)
-        await current_channel.send("Bot querying for posts...")
+# Handle loop failures by restarting polling
+@poll_new_posts.after_loop
+async def on_poll_error():
+    if poll_new_posts.is_being_cancelled() or poll_new_posts.failed():
+        await send_health_message(constants.BotHealthMessages.TASK_FAILED_AND_RESTART.value)
+        poll_new_posts.cancel()
+        poll_new_posts.restart()
+
+
+async def send_health_message(message):
+    for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+        status_channel_ids = subreddit_and_channels.status_channel_ids
+        for status_channel_id in status_channel_ids:
+            current_channel = get_channel_from_id(status_channel_id)
+            await current_channel.send(content=message)
 
 
 # Sends message to Discord channel depending on the platform type and notification type
