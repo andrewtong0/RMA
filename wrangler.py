@@ -204,16 +204,8 @@ def construct_reddit_message(subreddit, post, triggered_matches):
 
 
 def construct_user_report_embed(user_posts, username, user_data):
-    tags = user_data["tags"]
-    mod_comments = user_data["mod_comments"]
-    user_karma = user_data["comment_karma"] + user_data["link_karma"]
-
-    tags_string = ""
-    for tag in tags:
-        tags_string += tag + ", "
-    tags_string = tags_string[:-2]
-    if tags_string == "":
-        tags_string = "(None)"
+    user_karma = get_user_karma(user_data)
+    tags_string = get_user_tags(user_data)
 
     embed = discord.Embed(
         title=("User Report for {}".format(username)),
@@ -240,18 +232,66 @@ def construct_user_report_embed(user_posts, username, user_data):
             inline=True
         )
 
-    for comment in mod_comments:
-        mod_comment_author = comment["author"]["name"]
-        mod_comment_timestamp = comment["timestamp"]
-        embed.add_field(
-            name="Moderator Comment / Added by @{} / {}".format(mod_comment_author, mod_comment_timestamp),
-            value=comment["comment"]
-        )
+    # Add moderator comments to embed
+    embed = add_mod_comment_embed_fields(embed, user_data)
 
     embed.set_author(name=constants.BotAuthorDetails.NAME.value,
                      icon_url=constants.BotAuthorDetails.ICON_URL.value)
 
     embed = truncate_embed(embed)
+    return embed
+
+
+def construct_user_moderator_comments_embed(user_data, username):
+    user_karma = get_user_karma(user_data)
+    tags_string = get_user_tags(user_data)
+
+    embed = discord.Embed(
+        title=("User Report for {}".format(username)),
+        colour=discord.Colour(constants.RedditEmbedConsts.post_colour.value),
+        url=generate_reddit_user_link(username),
+        description=("Karma: {} / Tags: {}".format(str(user_karma), tags_string))
+    )
+
+    # Add moderator comments to embed
+    embed = add_mod_comment_embed_fields(embed, user_data)
+
+    embed.set_author(name=constants.BotAuthorDetails.NAME.value,
+                     icon_url=constants.BotAuthorDetails.ICON_URL.value)
+
+    embed = truncate_embed(embed)
+    return embed
+
+
+def get_user_karma(user_data):
+    return user_data["comment_karma"] + user_data["link_karma"]
+
+
+def get_user_tags(user_data):
+    tags = user_data["tags"]
+    tags_string = ""
+    for tag in tags:
+        tags_string += tag + ", "
+    tags_string = tags_string[:-2]
+    if tags_string == "":
+        tags_string = "(None)"
+    return tags_string
+
+
+def add_mod_comment_embed_fields(embed, user_data):
+    mod_comments = user_data["mod_comments"]
+    for comment in mod_comments:
+        mod_comment_author = comment["author"]["name"]
+        mod_comment_timestamp = comment["timestamp"]
+        embed.add_field(
+            name="[CID: {}] Moderator Comment/ Added by @{} / {}".format(
+                str(mod_comments.index(comment)),
+                mod_comment_author,
+                mod_comment_timestamp.strftime("%Y-%m-%d %H:%M")
+            ),
+            value=comment["comment"],
+            inline=False
+        )
     return embed
 
 

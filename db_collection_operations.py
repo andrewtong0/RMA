@@ -56,6 +56,17 @@ def get_filters():
     return map(map_filter_names, db.filters.find())
 
 
+# Generates user comments embed
+def generate_user_comments(username):
+    user_status = add_or_update_user(username)
+    if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
+        user_data = get_user_data(username)
+        embed = wrangler.construct_user_moderator_comments_embed(user_data, username)
+        return embed
+    else:
+        return wrangler.construct_user_not_found_embed(username)
+
+
 # Generates user report embed based on user posts from username
 def generate_user_report(username):
     user_status = add_or_update_user(username)
@@ -155,6 +166,35 @@ def add_user_comment(message, username, comment_author, comment):
             }
         }
         return db.users.find_one_and_update({"username": username}, {"$push": {"mod_comments": comment_object}})
+    else:
+        return None
+
+
+# Removes a user comment
+def remove_user_comment(username, comment_id):
+    user_status = add_or_update_user(username)
+    comment = get_user_comment(username, int(comment_id))
+    if user_status == constants.RedditUserUpsertStatus.SUCCESS.value and comment is not None:
+        return db.users.find_one_and_update({"username": username}, {"$pull": {"mod_comments": comment}})
+    else:
+        return None
+
+
+# TODO: Deterine if this is worth having since it is unused; cases that use mod comments get full user_data anyway
+# Gets moderator comments on a user
+def get_user_moderator_comments(username):
+    user_data = get_user_data(username)
+    if user_data is not None:
+        return user_data["mod_comments"]
+    else:
+        return None
+
+
+# Gets the user data and returns the comment at provided index
+def get_user_comment(username, comment_id):
+    mod_comments = get_user_moderator_comments(username)
+    if mod_comments is not None:
+        return mod_comments[comment_id]
     else:
         return None
 

@@ -454,8 +454,13 @@ async def get_filters(context):
 
 @client.command()
 async def user_report(context, username):
-    print("User Report")
     embed = db_collection_operations.generate_user_report(username)
+    await context.send(embed=embed)
+
+
+@client.command()
+async def user_comments(context, username):
+    embed = db_collection_operations.generate_user_comments(username)
     await context.send(embed=embed)
 
 
@@ -471,6 +476,17 @@ async def add_user_comment(context, username, *comment):
         await context.send("Moderator comment added to {}.".format(username))
     else:
         await context.send("There was an issue adding your comment.")
+
+
+@client.command()
+async def remove_user_comment(context, username, comment_id):
+    comment_removed = db_collection_operations.remove_user_comment(username, comment_id)
+    if comment_removed:
+        await context.send("Moderator comment removed from {}.".format(username))
+    else:
+        await context.send(
+            "There was an issue removing the specified comment. Please verify the comment ID and the given username."
+        )
 
 
 @client.command()
