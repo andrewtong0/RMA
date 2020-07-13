@@ -12,5 +12,10 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of functiona
 - **Database Catchup:** If the bot or any associated APIs go down, when the bot is able to reconnect, it will pull and store all posts missed during the downtime to ensure your database is complete and accurate.
 - **Reddit Moderator Actions:** If the bot is provided with moderator privileges, you can remove, lock, and approve posts, all directly from Discord using reacts.
 
+## Requirements:
+- **MongoDB Database:** A MongoDB URI must be provided to store posts and conduct database commands.
+- **Reddit API Credentials:** In order to query for posts, Reddit API credentials are required. If moderator functinos are also desired, you must also provide login credentials for an account with moderator privileges.
+- **Discord Bot Credentials:** To host the Discord bot, you need a bot account set up with the appropriate credentials.
+
 ## Roadmap:
 - **Standalone Client?** Potential for a standalone client to manage this, external from Discord.
