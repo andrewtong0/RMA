@@ -157,11 +157,12 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
         # Pings do not work in embeds, so they must be done as a separate, non-embed message
         if found_roles:
             ping_string = ""
+            ping_content = construct_ping_reasoning_block_string(triggered_matches)
             for found_role in found_roles:
                 ping_string += found_role.mention + " "
             for ping_channel in ping_channels:
                 await send_main_post_message_and_add_reactions(ping_channel, embed, is_post_submission)
-                await ping_channel.send("Post alert {}".format(ping_string))
+                await ping_channel.send("Post alert {}\n{}".format(ping_string, ping_content))
                 if followup_message:
                     await ping_channel.send(content=followup_message)
 
@@ -169,6 +170,13 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
         await send_main_post_message_and_add_reactions(channel, embed, is_post_submission)
         if followup_message:
             await channel.send(content=followup_message)
+
+
+def construct_ping_reasoning_block_string(matches):
+    matches_string = ""
+    for match in matches:
+        matches_string += "```{}: {}```".format(match["filter"]["name"], match["flagged_content"])
+    return matches_string
 
 
 # Abstracted calls to send main Reddit post/comment message into function for single point editing

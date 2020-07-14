@@ -152,7 +152,8 @@ def construct_reddit_message(subreddit, post, triggered_matches):
     # From the triggered_matches, we should only be operating on "flavour" information here (does not affect
     #   functionality). Logical operations should go in the loop on triggered_matches in discord_bot
     for match in triggered_matches:
-        filter_name_matches += " | " + match["filter"]["name"] + " "
+        filter_name_matches += match["filter"]["name"] + ", "
+    filter_name_matches = filter_name_matches[:-2]
 
     # Footer message should contain concatenation of filters hit, and post ID
     id_prefix = constants.StringConstants.SUBMISSION_ID.value if is_submission_post else constants.StringConstants.COMMENT_ID.value

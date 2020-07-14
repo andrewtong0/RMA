@@ -27,29 +27,37 @@ def _find_reddit_matches_for_post(filters, post):
     matches_for_post = []
 
     for content_filter in filters:
+        # If content is coming from Reddit
         if content_filter["platform"] == constants.Platforms.REDDIT.value:
             # If filter is of user filter type and user is in matches, add match
             if content_filter["type"] == constants.RedditFilterTypes.USERS.value and post["author"]["username"] in content_filter["matches"]:
-                matches_for_post.append({"filter": content_filter, "flagged_content": post["author"]["username"], "action": content_filter["action"]})
+                matches_for_post = add_matched_filter(matches_for_post, content_filter, post["author"]["username"])
+            # If filter is of post type
             elif content_filter["type"] == constants.RedditFilterTypes.POSTS.value:
+                # Check post against all regex phrases
                 for regex_phrase in content_filter["matches"]:
                     # Submissions also have titles, so we should check the title in addition to the content of the post
                     if post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value:
-                        if re.match(regex_phrase, post["title"]):
-                            matches_for_post.append({"filter": content_filter, "flagged_content": regex_phrase,
-                                                     "action": content_filter["action"]})
-                    if re.match(regex_phrase, post["content"]):
-                        matches_for_post.append({"filter": content_filter, "flagged_content": regex_phrase,
-                                                 "action": content_filter["action"]})
+                        if re.search(regex_phrase, post["title"]):
+                            matches_for_post = add_matched_filter(matches_for_post, content_filter, regex_phrase)
+                    if re.search(regex_phrase, post["content"]):
+                        matches_for_post = add_matched_filter(matches_for_post, content_filter, regex_phrase)
             elif content_filter["type"] == constants.RedditFilterTypes.MEDIA_SOURCE.value:
                 if post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value and post["extra_info"]["media_source"] in content_filter["matches"]:
                     # TODO: Refactor the flagged_content and make it more abstract to instead say the title of the channel rather than the link as the flagged match
-                    matches_for_post.append({"filter": content_filter,
-                                             "flagged_content": post["extra_info"]["media_source"],
-                                            "action": content_filter["action"]})
+                    matches_for_post = add_matched_filter(matches_for_post, content_filter, post["extra_info"]["media_source"])
             # TODO: Implement this once subreddit is stored or we figure out how to do subreddit blacklist
             # elif post_filter.type == constants.RedditFilterTypes.SUBREDDITS.value and post.subreddit in post_filter.matches:
     return matches_for_post
+
+
+def add_matched_filter(current_matches, new_match_filter, new_match_content):
+    current_matches.append({
+        "filter": new_match_filter,
+        "flagged_content": new_match_content,
+        "action": new_match_filter["action"]
+    })
+    return current_matches
 
 
 # Apply all filters across acquired content
