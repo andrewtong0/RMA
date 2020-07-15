@@ -28,6 +28,7 @@ class RedditFilterTypes(Enum):
     SUBREDDITS = "subreddits"
     POSTS = "posts"
     MEDIA_SOURCE = "media_source"
+    MEDIA_SOURCE_HISTORY = "media_source_history"
 
 
 class RedditUserUpsertStatus(Enum):

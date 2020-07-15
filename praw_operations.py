@@ -72,6 +72,7 @@ def _construct_entry_object(subreddit_name, post, post_type):
                 "extra_info": {
                     "initial_flair": post.link_flair_text,
                     # TODO: Fix this and refactor so it doesn't only leverage off of the author_url
+                    "media_title": post.media["oembed"]["title"] if post.media and "oembed" in post.media.keys() and "title" in post.media["oembed"].keys() else None,
                     "media_source": post.media["oembed"]["author_url"] if post.media and "oembed" in post.media.keys() and "author_url" in post.media["oembed"].keys() else None
                 }
             }
