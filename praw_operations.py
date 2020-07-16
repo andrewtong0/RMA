@@ -5,7 +5,7 @@ from datetime import datetime
 import constants
 import environment_variables
 import user_preferences
-
+import exceptions
 
 # This file provides two public functions, get_and_store_posts and get_and_store_unstored to query for new posts with
 # PRAW. All PRAW (Reddit) related operations are isolated to this file.
@@ -20,7 +20,6 @@ reddit = praw.Reddit(client_id=environment_variables.REDDIT_CLIENT_ID,
                      redirect_uri="http://localhost:8080")
 print("PRAW Logged in as: " + str(reddit.user.me()))
 reddit.read_only = False
-
 
 # Database setup
 client = MongoClient(environment_variables.DATABASE_URI)
@@ -37,7 +36,7 @@ def _get_posts(num_posts, posts_type, subreddit_name):
 
 
 # Constructs an entry object from a post
-def _construct_entry_object(subreddit_name, post, post_type):
+def construct_entry_object(subreddit_name, post, post_type):
     utc = post.created_utc
     timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
     content = ""
@@ -72,8 +71,12 @@ def _construct_entry_object(subreddit_name, post, post_type):
                 "extra_info": {
                     "initial_flair": post.link_flair_text,
                     # TODO: Fix this and refactor so it doesn't only leverage off of the author_url
-                    "media_title": post.media["oembed"]["title"] if post.media and "oembed" in post.media.keys() and "title" in post.media["oembed"].keys() else None,
-                    "media_source": post.media["oembed"]["author_url"] if post.media and "oembed" in post.media.keys() and "author_url" in post.media["oembed"].keys() else None
+                    "media_title": post.media["oembed"][
+                        "title"] if post.media and "oembed" in post.media.keys() and "title" in post.media[
+                        "oembed"].keys() else None,
+                    "media_source": post.media["oembed"][
+                        "author_url"] if post.media and "oembed" in post.media.keys() and "author_url" in post.media[
+                        "oembed"].keys() else None
                 }
             }
             return submission_entry
@@ -112,7 +115,7 @@ def _construct_entry_object(subreddit_name, post, post_type):
 
 
 # Attempts to store each entry object in database with helper function, returns a list of all successfully stored posts
-def _store_entry_objects(entry_objects, posts_type):
+def store_entry_objects(entry_objects, posts_type):
     posts_stored = []
     for entry_object in entry_objects:
         if not _is_post_in_db(entry_object, posts_type):
@@ -130,39 +133,48 @@ def _store_entry_object_helper(entry_object, post_type):
 
 
 # Check if post is already in database, return true if it is, false if not
-def _is_post_in_db(entry_object, post_type):
-    id_object = {"_id": entry_object["_id"]}
-    queried_post = db.submissions.find_one(id_object) if post_type == constants.PostTypes.REDDIT_SUBMISSION else db.comments.find_one(id_object)
-    if post_type == constants.PostTypes.REDDIT_SUBMISSION and queried_post is None:
+def _is_post_in_db(entry_object, post_type, ignore_buffer_items=None):
+    if ignore_buffer_items is None:
+        ignore_buffer_items = []
+    post_id = entry_object["_id"]
+    # Check if the post ID is in the buffer of IDs to ignore
+    if post_id not in ignore_buffer_items:
+        id_object = {"_id": post_id}
+        queried_post = db.submissions.find_one(
+            id_object) if post_type == constants.PostTypes.REDDIT_SUBMISSION else db.comments.find_one(id_object)
+        if post_type == constants.PostTypes.REDDIT_SUBMISSION and queried_post is None:
+            return False
+        elif post_type == constants.PostTypes.REDDIT_COMMENT and queried_post is None:
+            return False
+        return True
+    else:
         return False
-    elif post_type == constants.PostTypes.REDDIT_COMMENT and queried_post is None:
-        return False
-    return True
 
 
 # Gets the number of specified posts, constructs entry objects, and stores new posts in the database
 def get_and_store_posts(num_posts, post_type, subreddit_name):
     posts = _get_posts(num_posts, post_type, subreddit_name)
-    entry_objects = [_construct_entry_object(subreddit_name, post, post_type) for post in posts]
+    entry_objects = [construct_entry_object(subreddit_name, post, post_type) for post in posts]
     entry_objects = remove_invalid_posts(entry_objects)
-    new_posts = _store_entry_objects(entry_objects, post_type)
+    new_posts = store_entry_objects(entry_objects, post_type)
     print("Posts retrieved")
     return new_posts
 
 
 # Will repeatedly get posts on each iteration increasing by post_chunk_size until a post was already stored
-def get_and_store_unstored(post_chunk_size, post_type, subreddit_name):
+def get_and_store_unstored(post_chunk_size, post_type, subreddit_name, ignore_buffer_items):
     num_queries = 1
     new_posts = []
     while True:
         posts = _get_posts(post_chunk_size * num_queries, post_type, subreddit_name)
-        entry_objects = [_construct_entry_object(subreddit_name, post, post_type) for post in posts[(post_chunk_size * -1):]]
+        entry_objects = [construct_entry_object(subreddit_name, post, post_type) for post in
+                         posts[(post_chunk_size * -1):]]
         entry_objects = remove_invalid_posts(entry_objects)
         sorted_entry_objects = sort_by_created_time(entry_objects, False)
-        were_all_already_stored = _is_post_in_db(sorted_entry_objects[-1], post_type)
+        were_all_already_stored = _is_post_in_db(sorted_entry_objects[-1], post_type, ignore_buffer_items)
         if were_all_already_stored:
             break
-        new_posts = _store_entry_objects(entry_objects, post_type)
+        new_posts = store_entry_objects(entry_objects, post_type)
         print("Query " + str(num_queries) + "...")
         num_queries += 1
     print("Querying complete")
@@ -206,6 +218,24 @@ def request_post(post_id, post_type):
         return reddit.comment(post_id)
 
 
+# TODO: Find a better way to check if a post/comment ID is invalid
+# When it is unknown whether the provided ID is a post or comment, return whatever is found
+def attempt_to_request_post(post_id):
+    submission_attempt = reddit.submission(id=post_id)
+    comment_attempt = reddit.comment(id=post_id)
+    try:
+        # Dummy variable to test if accessing comments throws an exception, which it does if the post ID is invalid
+        comments = submission_attempt.comments
+        return {"post": submission_attempt, "type": constants.PostTypes.REDDIT_SUBMISSION}
+    except:
+        try:
+            # Dummy variable to test if accessing comments throws an exception, which it does if the post ID is invalid
+            submission = comment_attempt.submission
+            return {"post": comment_attempt, "type": constants.PostTypes.REDDIT_COMMENT}
+        except:
+            raise exceptions.NoPostOrCommentFound
+
+
 def request_sorted_comments(submission):
     # Raw list of all comments (recursed through comment trees)
     submission.comments.replace_more(limit=None)
@@ -226,14 +256,18 @@ def update_automoderator_page(synced_filter, new_match, action):
         automod_filters = automod_wikipage.content_md.split(user_preferences.FilterSeparator)
         queried_filter_and_index = get_automoderator_filter(automod_filters, filter_name)
         if queried_filter_and_index is not None:
-            updated_filter = update_automoderator_filter_matches(
-                queried_filter_and_index["filter"],
-                new_match,
-                action
-            )
-            automod_filters[queried_filter_and_index["index"]] = updated_filter
-            updated_automod_filters = user_preferences.FilterSeparator.join(automod_filters)
-            automod_wikipage.edit(content=updated_automod_filters, reason=synced_filter["filter_log_reason"])
+            try:
+                updated_filter = update_automoderator_filter_matches(
+                    queried_filter_and_index["filter"],
+                    new_match,
+                    action
+                )
+                automod_filters[queried_filter_and_index["index"]] = updated_filter
+                updated_automod_filters = user_preferences.FilterSeparator.join(automod_filters)
+                automod_wikipage.edit(content=updated_automod_filters, reason=synced_filter["filter_log_reason"])
+                return constants.RedditAutomodEditStatus.SUCCESS.value
+            except exceptions.AutomodRemovalNotFound:
+                return constants.RedditAutomodEditStatus.FAIL.value
 
 
 def get_automoderator_filter(automod_filters, filter_name):
@@ -246,13 +280,25 @@ def get_automoderator_filter(automod_filters, filter_name):
 # TODO: Refactor to generalize and get matches, even if form is not in an array with brackets []
 # Returns updated filter with new matches
 def update_automoderator_filter_matches(automod_filter, new_match, action):
-    # Find list of matches between brackets
+    # Find list of matches (e.g. list of names for shadowbans) between brackets
     matches = re.search(r"\[(.*)\]", automod_filter).group(1)
     if action == constants.RedditOperationTypes.ADD.value:
         matches += ", {}".format(new_match)
-    # TODO: Implement removal
     elif action == constants.RedditOperationTypes.REMOVE.value:
-        print("not implemented")
+        search_string = r"\,?\s*" + re.escape(new_match)
+        search_result = re.search(search_string, matches)
+
+        partitioned_matches = matches.partition(search_result.group())
+        if partitioned_matches[1] != "":
+            prefix = partitioned_matches[0]
+            suffix = partitioned_matches[2]
+            matches = prefix + suffix
+
+            # If we are removing the first entry in the list, ensure there is no extra comma at the beginning
+            if matches[0] == ",":
+                matches = matches[1:].lstrip()
+        else:
+            raise exceptions.AutomodRemovalNotFound
     # Re-add brackets since they are removed via search
     matches = "[{}]".format(matches)
 

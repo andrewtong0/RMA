@@ -11,6 +11,7 @@ import wrangler
 import user_preferences
 import db_collection_operations
 import environment_variables
+import exceptions
 
 # This file should only be used for Discord bot management
 
@@ -26,6 +27,15 @@ def set_filters():
     for f in retrieved_filters:
         output_filters.append(f)
     return output_filters
+
+
+# Initialize metadata information
+def set_metadata():
+    retrieved_metadata = db_collection_operations.get_collection("metadata")
+    metadata_dict = {}
+    for metadata in retrieved_metadata:
+        metadata_dict[metadata["name"]] = metadata
+    return metadata_dict
 
 
 # Return roles matching names in roles_to_find
@@ -47,6 +57,7 @@ def get_roles():
 
 client = commands.Bot(command_prefix=user_preferences.Settings.BOT_PREFIX.value)
 db_filters = set_filters()
+metadata_dict = set_metadata()
 
 # =====================
 # GENERIC BOT FUNCTIONS
@@ -91,6 +102,52 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
         for channel_id in subreddit_and_channels.secondary_review_channel_ids:
             channels.append(get_channel_from_id(channel_id))
     return channels
+
+
+# Given a post ID or a URL, extract the ID
+def get_post_id(id_or_url):
+    is_entry_url = is_url(id_or_url)
+    post_id = ""
+    if is_entry_url:
+        post_id = get_post_id_from_url(id_or_url)
+    else:
+        post_id = id_or_url
+    return post_id
+
+
+# Determine if the given value is a Reddit URL or an ID
+def is_url(id_or_url):
+    if constants.RedditUrlConsts.key_string.value in id_or_url:
+        return True
+    else:
+        return False
+
+
+# If given value is a URL, get either the post or direct comment link ID
+def get_post_id_from_url(url):
+    removed_domain = url.partition(constants.RedditUrlConsts.key_string.value)[2]
+    # If URL ends with a slash, remove it so it doesn't mess up partitioning
+    if removed_domain[-1:] == "/":
+        removed_domain = removed_domain[:-1]
+    split_on_slash = removed_domain.split(constants.RedditUrlConsts.key_string.url_delimiter.value)
+    # If there are more than 4 sections, it is a comment link
+    if len(split_on_slash) >= 5:
+        comment_id_split = split_on_slash[4]
+        query_param_indicator = constants.RedditUrlConsts.query_param_indicator.value
+        if query_param_indicator in comment_id_split:
+            comment_id_split = comment_id_split.split(query_param_indicator)[0]
+        return comment_id_split
+    # Otherwise it is a post link
+    else:
+        return split_on_slash[2]
+
+
+# If the filter should be synced, return the filter, otherwise return None
+def should_filter_be_synced(filter_name):
+    for synced_filter in user_preferences.SyncedFilters:
+        if filter_name.lower() in synced_filter["filter_name"].lower():
+            return synced_filter
+    return None
 
 
 # ===================
@@ -233,12 +290,21 @@ async def actions_on_posts(post_and_matches, subreddit_and_channels):
 async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     # Refresh filters on each poll
     global db_filters
+    global metadata_dict
     db_filters = set_filters()
+    metadata_dict = set_metadata()
 
+    ignore_buffer_items = metadata_dict[constants.DatabaseMetadataInfo.IGNORE_BUFFER_NAME.value]["items"]
     subreddit_name = subreddit_and_channels.subreddit
-    new_submissions = praw_operations.get_and_store_unstored(num_posts, constants.PostTypes.REDDIT_SUBMISSION, subreddit_name)
-    new_comments = praw_operations.get_and_store_unstored(num_posts, constants.PostTypes.REDDIT_COMMENT, subreddit_name)
+    new_submissions = praw_operations.get_and_store_unstored(
+        num_posts, constants.PostTypes.REDDIT_SUBMISSION, subreddit_name, ignore_buffer_items
+    )
+    new_comments = praw_operations.get_and_store_unstored(
+        num_posts, constants.PostTypes.REDDIT_COMMENT, subreddit_name, ignore_buffer_items
+    )
     new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
+
+    db_collection_operations.clear_ignore_buffer()
     if new_posts:
         print("{} / {} new posts found on {}".format(datetime.datetime.now(), str(len(new_posts)), subreddit_name))
         # print(new_posts)
@@ -385,15 +451,19 @@ async def handle_reaction(reaction, user):
 async def add_match(context, filter_name, new_match):
     add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditOperationTypes.ADD.value)
     if add_result:
-        # If a filter should also update the automoderator wiki, do it here in addition to updating database
-        for synced_filter in user_preferences.SyncedFilters:
-            if filter_name.lower() in synced_filter["filter_name"].lower():
-                praw_operations.update_automoderator_page(
-                    synced_filter,
-                    new_match,
-                    constants.RedditOperationTypes.ADD.value
-                )
-        await context.send("{} successfully added to {}".format(new_match, filter_name))
+        # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
+        filter_sync_result = should_filter_be_synced(filter_name)
+        automod_result = ""
+        if filter_sync_result is not None:
+            automod_result = praw_operations.update_automoderator_page(
+                filter_sync_result,
+                new_match,
+                constants.RedditOperationTypes.ADD.value
+            )
+        if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
+            await context.send("{} successfully added to {}".format(new_match, filter_name))
+        else:
+            await context.send("There was an issue adding {} to the Reddit automoderator page.".format(new_match))
     else:
         await context.send("There was an issue adding {} to {}. Verify the specified filter name and ensure the match has not already been added.".format(new_match, filter_name))
 
@@ -410,7 +480,19 @@ async def bulk_add_match(context, filter_name, *matches):
 async def remove_match(context, filter_name, match_to_remove):
     remove_result = db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditOperationTypes.REMOVE.value)
     if remove_result:
-        await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
+        # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
+        filter_sync_result = should_filter_be_synced(filter_name)
+        automod_result = ""
+        if filter_sync_result is not None:
+            automod_result = praw_operations.update_automoderator_page(
+                filter_sync_result,
+                match_to_remove,
+                constants.RedditOperationTypes.REMOVE.value
+            )
+        if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
+            await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
+        else:
+            await context.send("There was an issue removing {} from the Reddit automoderator page.".format(match_to_remove))
     else:
         await context.send("There was an issue removing {} from {}. Verify the specified filter name and ensure the match exists in the list of matches.".format(match_to_remove, filter_name))
 
@@ -433,18 +515,34 @@ async def get_matches(context, filter_name):
 
 # Get post or comment by ID and send embed message. If nothing is found, send error message.
 @client.command()
-async def get_post(context, post_id):
+async def get_post(context, post_id_or_url):
+    post_id = get_post_id(post_id_or_url)
     post = db_collection_operations.get_post(post_id)
+    # If it is a post
     if post is not None:
         embed = wrangler.construct_reddit_message(post["subreddit"], post, [])["embed"]
         await send_main_post_message_and_add_reactions(context.channel, embed)
     else:
+        # If it is a comment
         comment = db_collection_operations.get_comment(post_id)
         if comment is not None:
             embed = wrangler.construct_reddit_message(comment["subreddit"], comment, [])["embed"]
             await send_main_post_message_and_add_reactions(context.channel, embed)
+        # Otherwise, the post or comment has not yet been queried for
         else:
-            await context.channel.send("Failed to send message. Please verify the post ID.")
+            try:
+                post_and_type = praw_operations.attempt_to_request_post(post_id)
+                praw_post = post_and_type["post"]
+                if praw_post is not None:
+                    subreddit = praw_post.subreddit.display_name
+                    post_type = post_and_type["type"]
+                    entry_object = praw_operations.construct_entry_object(subreddit, praw_post, post_type)
+                    valid_entry_object_as_array = praw_operations.remove_invalid_posts([entry_object])
+                    praw_operations.store_entry_objects(valid_entry_object_as_array, post_type)
+                    db_collection_operations.add_post_id_to_ignore_buffer(post_id)
+                    await get_post(context, post_id)
+            except exceptions.NoPostOrCommentFound:
+                await context.channel.send("Failed to find post. Please verify the post ID.")
 
 
 @client.command()

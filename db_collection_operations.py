@@ -214,3 +214,21 @@ def is_post_submission(post_id):
     if post is not None:
         return post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value
     return False
+
+
+def add_post_id_to_ignore_buffer(post_id):
+    db.metadata.find_one_and_update(
+        {"name": constants.DatabaseMetadataInfo.IGNORE_BUFFER_NAME.value},
+        {"$push": {"items": post_id}}
+    )
+
+
+def get_ignore_buffer():
+    return db.metadata.find_one({"name": constants.DatabaseMetadataInfo.IGNORE_BUFFER_NAME.value})
+
+
+def clear_ignore_buffer():
+    db.metadata.find_one_and_update(
+        {"name": constants.DatabaseMetadataInfo.IGNORE_BUFFER_NAME.value},
+        {"$set": {"items": []}}
+    )

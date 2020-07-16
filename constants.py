@@ -37,6 +37,11 @@ class RedditUserUpsertStatus(Enum):
     MISSING = "missing"
 
 
+class RedditAutomodEditStatus(Enum):
+    SUCCESS = "success"
+    FAIL = "fail"
+
+
 class RedditOperationTypes(Enum):
     ADD = "add"
     APPROVE = "approve"
@@ -111,6 +116,12 @@ ReactsThatRequireMod = [
 ]
 
 
+class RedditUrlConsts(Enum):
+    key_string = "reddit.com/r/"
+    url_delimiter = "/"
+    query_param_indicator = "?"
+
+
 class RedditEmbedConsts(Enum):
     post_colour = 0xc77d00
     comment_colour = 0xfbff00
@@ -160,6 +171,10 @@ class BotHealthMessages(Enum):
     POLLING_START = "Polling loop task has started."
     POLLING_UP = "Bot querying for posts..."
     TASK_FAILED_AND_RESTART = "An internal loop task has failed. Attempting to restart..."
+
+
+class DatabaseMetadataInfo(Enum):
+    IGNORE_BUFFER_NAME = "Ignore Buffer"  # Name field for the ignore buffer in the database metadata
 
 
 # Currently only works with 1 word strings (e.g. links) with whitespace checks
