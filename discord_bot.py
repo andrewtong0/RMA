@@ -460,12 +460,14 @@ async def add_match(context, filter_name, new_match):
                 new_match,
                 constants.RedditOperationTypes.ADD.value
             )
-        if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
+            if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
+                await context.send("{} successfully added to {}".format(new_match, filter_name))
+            elif automod_result == constants.RedditAutomodEditStatus.FAIL.value:
+                await context.send("There was an issue adding {} to the Reddit automoderator page.".format(new_match))
+            elif automod_result == constants.RedditAutomodEditStatus.MISSING_PRIVILEGES.value:
+                await context.send("{} could not be added to the Reddit automoderator page due to missing privileges.".format(new_match))
+        else:
             await context.send("{} successfully added to {}".format(new_match, filter_name))
-        elif automod_result == constants.RedditAutomodEditStatus.FAIL.value:
-            await context.send("There was an issue adding {} to the Reddit automoderator page.".format(new_match))
-        elif automod_result == constants.RedditAutomodEditStatus.MISSING_PRIVILEGES.value:
-            await context.send("{} could not be added to the Reddit automoderator page due to missing privileges.".format(new_match))
     else:
         await context.send("There was an issue adding {} to {}. Verify the specified filter name and ensure the match has not already been added.".format(new_match, filter_name))
 
@@ -484,17 +486,21 @@ async def remove_match(context, filter_name, match_to_remove):
     if remove_result:
         # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
         filter_sync_result = should_filter_be_synced(filter_name)
-        automod_result = ""
         if filter_sync_result is not None:
             automod_result = praw_operations.update_automoderator_page(
                 filter_sync_result,
                 match_to_remove,
                 constants.RedditOperationTypes.REMOVE.value
             )
-        if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
-            await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
+            if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
+                await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
+            elif automod_result == constants.RedditAutomodEditStatus.FAIL.value:
+                await context.send("There was an issue removing {} from the Reddit automoderator page.".format(match_to_remove))
+            elif automod_result == constants.RedditAutomodEditStatus.MISSING_PRIVILEGES.value:
+                await context.send( "{} could not be removed from the Reddit automoderator page due to missing privileges.".format(match_to_remove))
         else:
-            await context.send("There was an issue removing {} from the Reddit automoderator page.".format(match_to_remove))
+            # TODO: Refactor to remove duplicate line from above
+            await context.send("{} successfully removed from {}".format(match_to_remove, filter_name))
     else:
         await context.send("There was an issue removing {} from {}. Verify the specified filter name and ensure the match exists in the list of matches.".format(match_to_remove, filter_name))
 
