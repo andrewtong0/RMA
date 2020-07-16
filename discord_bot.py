@@ -462,8 +462,10 @@ async def add_match(context, filter_name, new_match):
             )
         if automod_result == constants.RedditAutomodEditStatus.SUCCESS.value:
             await context.send("{} successfully added to {}".format(new_match, filter_name))
-        else:
+        elif automod_result == constants.RedditAutomodEditStatus.FAIL.value:
             await context.send("There was an issue adding {} to the Reddit automoderator page.".format(new_match))
+        elif automod_result == constants.RedditAutomodEditStatus.MISSING_PRIVILEGES.value:
+            await context.send("{} could not be added to the Reddit automoderator page due to missing privileges.".format(new_match))
     else:
         await context.send("There was an issue adding {} to {}. Verify the specified filter name and ensure the match has not already been added.".format(new_match, filter_name))
 

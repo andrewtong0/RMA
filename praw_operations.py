@@ -268,6 +268,7 @@ def update_automoderator_page(synced_filter, new_match, action):
                 return constants.RedditAutomodEditStatus.SUCCESS.value
             except exceptions.AutomodRemovalNotFound:
                 return constants.RedditAutomodEditStatus.FAIL.value
+    return constants.RedditAutomodEditStatus.MISSING_PRIVILEGES.value
 
 
 def get_automoderator_filter(automod_filters, filter_name):

@@ -40,6 +40,7 @@ class RedditUserUpsertStatus(Enum):
 class RedditAutomodEditStatus(Enum):
     SUCCESS = "success"
     FAIL = "fail"
+    MISSING_PRIVILEGES = "missing_privileges"
 
 
 class RedditOperationTypes(Enum):
