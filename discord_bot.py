@@ -345,10 +345,13 @@ def get_embed_post_id(embed):
 # Returns embed post type (e.g. post/submission)
 def get_embed_post_type(embed):
     footer = embed.footer.text
-    if constants.StringConstants.SUBMISSION_ID.value in footer:
-        return constants.PostTypes.REDDIT_SUBMISSION.value
-    elif constants.StringConstants.COMMENT_ID.value in footer:
-        return constants.PostTypes.REDDIT_COMMENT.value
+    if footer is not embed.Empty:
+        if constants.StringConstants.SUBMISSION_ID.value in footer:
+            return constants.PostTypes.REDDIT_SUBMISSION.value
+        elif constants.StringConstants.COMMENT_ID.value in footer:
+            return constants.PostTypes.REDDIT_COMMENT.value
+    else:
+        return None
 
 
 # Splits initial reaction to appropriate call
