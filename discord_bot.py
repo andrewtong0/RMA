@@ -1,3 +1,4 @@
+import re
 import datetime
 import prawcore
 import discord
@@ -148,6 +149,15 @@ def should_filter_be_synced(filter_name):
         if filter_name.lower() in synced_filter["filter_name"].lower():
             return synced_filter
     return None
+
+
+# Returns true if given regex ia a valid expression, false otherwise
+def is_match_valid_regex(regex):
+    try:
+        re.compile(regex)
+        return True
+    except re.error:
+        return False
 
 
 # ===================
@@ -449,11 +459,16 @@ async def handle_reaction(reaction, user):
 # ============
 # TODO: Handle invalid commands gracefully
 
+# TODO: Figure out if add and remove match can be refactored into one function
 # Add match to filter
 @client.command()
 async def add_match(context, filter_name, new_match):
     add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditOperationTypes.ADD.value)
     if add_result:
+        if filter_name in user_preferences.RegexFilters:
+            if not is_match_valid_regex(new_match):
+                await context.send("Your regular expression appears to be invalid. Please fix it and try again.")
+                return
         # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
         filter_sync_result = should_filter_be_synced(filter_name)
         automod_result = ""
@@ -582,13 +597,8 @@ async def user_comments(context, username):
 
 
 @client.command()
-async def add_user_comment(context, username, *comment):
-    # Since comment string is separated by spaces, Discord will recognize each word as a separate param
-    comment_string = ""
-    for word in comment:
-        comment_string += word + " "
-    comment_string = comment_string[:-1]  # Remove extra space at end
-    comment_added = db_collection_operations.add_user_comment(context.message, username, context.message.author, comment_string)
+async def add_user_comment(context, username, *, comment):
+    comment_added = db_collection_operations.add_user_comment(context.message, username, context.message.author, comment)
     if comment_added:
         await context.send("Moderator comment added to {}.".format(username))
     else:
