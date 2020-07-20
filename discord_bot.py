@@ -463,12 +463,16 @@ async def handle_reaction(reaction, user):
 # Add match to filter
 @client.command()
 async def add_match(context, filter_name, new_match):
+    # Preliminary check before adding to the database in case new match shouldn't be added
+    if filter_name in user_preferences.RegexFilters:
+        if not is_match_valid_regex(new_match):
+            escaped_match = new_match.replace('"', r'\"')
+            await context.send("{} appears to be an invalid regular expression.".format(escaped_match))
+            return
+
+    # Add match to database
     add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditOperationTypes.ADD.value)
     if add_result:
-        if filter_name in user_preferences.RegexFilters:
-            if not is_match_valid_regex(new_match):
-                await context.send("Your regular expression appears to be invalid. Please fix it and try again.")
-                return
         # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
         filter_sync_result = should_filter_be_synced(filter_name)
         automod_result = ""
