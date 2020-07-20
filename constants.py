@@ -89,6 +89,7 @@ class RedditReactEmojis(Enum):
     POST_UNLOCK = "🔓"                      # Unlocked lock
     POST_APPROVE = "☑"                     # Blue check mark
     POST_REMOVE = "🗑️"                     # Wastebasket
+    EMOJI_CONTAINER = "[]"                  # Brackets surrounding react emoji feedback
 
 
 # Reacts that after clicking, should remove original message

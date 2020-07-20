@@ -364,6 +364,32 @@ def get_embed_post_type(embed):
         return None
 
 
+# TODO: If the actual title contains the same emoji, it will be removed from it as well
+# TODO: - One idea is to add in a divider (e.g. |) to identify the separation between emojis and the title, but the divider might also be a character in the title
+# Removes an emoji from the embed title
+def remove_emoji_from_embed_title(embed, emoji):
+    title = embed.title
+    if emoji in title:
+        embed.title = re.sub(emoji + " ", "", title)
+    return embed
+
+
+# Adds emoji to an embed title
+def add_emoji_to_embed_title(embed, emoji):
+    if emoji == constants.RedditReactEmojis.POST_APPROVE.value:
+        embed = remove_emoji_from_embed_title(embed, constants.RedditReactEmojis.POST_REMOVE.value)
+    elif emoji == constants.RedditReactEmojis.POST_REMOVE.value:
+        embed = remove_emoji_from_embed_title(embed, constants.RedditReactEmojis.POST_APPROVE.value)
+    embed.title = emoji + " " + embed.title
+    return embed
+
+
+# Action is either add or remove, not other options (due to the else block catching all)
+async def edit_message_embed_with_emoji(message, embed, emoji, action):
+    new_embed = add_emoji_to_embed_title(embed, emoji) if action == constants.RedditOperationTypes.ADD.value else remove_emoji_from_embed_title(embed, emoji)
+    await message.edit(embed=new_embed)
+
+
 # Splits initial reaction to appropriate call
 async def handle_reaction(reaction, user):
     message = reaction.message
@@ -379,8 +405,7 @@ async def handle_reaction(reaction, user):
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
         elif react_emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
-            message_embed = message_main_embed
-            post_id = get_embed_post_id(message_embed)
+            post_id = get_embed_post_id(message_main_embed)
             submission = praw_operations.request_post(post_id, constants.PostTypes.REDDIT_SUBMISSION)
             comments = get_negative_comment_tree(submission)
             embed = wrangler.construct_negative_comment_tree_embed(submission, comments)
@@ -403,6 +428,7 @@ async def handle_reaction(reaction, user):
                 reviewer_ping = secondary_review_role[0].mention + " " if secondary_review_role is not [] else ""
                 request_message = "{}{} {} {} ({})".format(reviewer_ping, constants.StringConstants.SECONDARY_REVIEW_TITLE_PREFIX.value, constants.StringConstants.SECONDARY_REVIEW_REQUESTED_BY_SEPARATOR.value, user.name, user.id)
                 await send_main_post_message_and_add_reactions(channel, original_embed, False, False, request_message)
+            await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
         # Handle secondary review approve/reject
         elif react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value or react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value:
             is_approved = False
@@ -412,17 +438,16 @@ async def handle_reaction(reaction, user):
             review_requester = "<@" + review_requester_uuid + ">"
             review_fulfiller = "<@" + str(user.id) + ">"
             embed = await wrangler.construct_approve_or_reject_review_embed(message.embeds[0], review_requester, review_fulfiller, is_approved, message.reactions, client.user.id)
-
             await message.channel.send(content=review_requester, embed=embed)
         # Adds post to a user's moderator comments
         elif react_emoji == constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value:
-            embed = message.embeds[0]
-            comment = "[{}]({})".format(embed.description, embed.url)
-            mod_comment = db_collection_operations.add_user_comment(message, embed.author.name, user, comment)
+            comment = "[{}]({})".format(message_main_embed.description, message_main_embed.url)
+            mod_comment = db_collection_operations.add_user_comment(message, message_main_embed.author.name, user, comment)
             if mod_comment:
                 await message.channel.send("Added post to user mod comments.")
             else:
                 await message.channel.send("Failed to add post to user mod comments.")
+            await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
         elif environment_variables.HAS_MOD and react_emoji in constants.ReactsThatRequireMod:
             # Lock post
             if react_emoji == constants.RedditReactEmojis.POST_LOCK.value:
@@ -430,20 +455,24 @@ async def handle_reaction(reaction, user):
                 praw_operations.action_on_post(post_id, constants.RedditOperationTypes.LOCK.value, post_type)
                 await message.remove_reaction(react_emoji, client.user)
                 await message.add_reaction(constants.RedditReactEmojis.POST_UNLOCK.value)
+                await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
             # Unlock post
             elif react_emoji == constants.RedditReactEmojis.POST_UNLOCK.value:
                 post_id = get_embed_post_id(message_main_embed)
                 praw_operations.action_on_post(post_id, constants.RedditOperationTypes.UNLOCK.value, post_type)
                 await message.remove_reaction(react_emoji, client.user)
                 await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
+                await edit_message_embed_with_emoji(message, message_main_embed, constants.RedditReactEmojis.POST_LOCK.value, constants.RedditOperationTypes.REMOVE.value)
             # Approve post
             elif react_emoji == constants.RedditReactEmojis.POST_REMOVE.value:
                 post_id = get_embed_post_id(message_main_embed)
                 praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
+                await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
             # Remove post
             elif react_emoji == constants.RedditReactEmojis.POST_APPROVE.value:
                 post_id = get_embed_post_id(message_main_embed)
                 praw_operations.action_on_post(post_id, constants.RedditOperationTypes.APPROVE.value, post_type)
+                await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
 
         # Reset reaction to allow for repeated actions
         if reaction.emoji not in constants.ReactsThatPersist:
