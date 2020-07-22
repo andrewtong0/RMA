@@ -3,6 +3,9 @@ import datetime
 import discord
 import re
 
+import user_preferences
+import environment_variables
+
 
 def generate_reddit_user_link(username):
     return constants.RedditEmbedConsts.username_link.value + username
@@ -118,6 +121,13 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
     return embed
 
 
+def get_subreddit_colour(subreddit):
+    subreddits_and_channels = user_preferences.DevSubredditsAndChannels if environment_variables.DEV_MODE else user_preferences.ProdSubredditsAndChannels
+    for subreddit_and_channels in subreddits_and_channels:
+        if subreddit_and_channels.subreddit == subreddit:
+            return subreddit_and_channels.embed_colour
+
+
 # TODO: Refactor this into two separate functions, one for post and one for comments? Unless too much duplication, but then maybe build a base of the message then pass in as a param
 def construct_reddit_message(subreddit, post, triggered_matches):
     is_submission_post = is_post_submission(post)
@@ -138,9 +148,14 @@ def construct_reddit_message(subreddit, post, triggered_matches):
     embed_username_link = generate_reddit_user_link(author_name)
     author_icon = post["author"]["author_icon"]
 
+    embed_colour = get_subreddit_colour(subreddit)
+    if embed_colour is None:
+        embed_colour = discord.Colour(constants.RedditEmbedConsts.post_colour.value) if is_submission_post else discord.Colour(
+            constants.RedditEmbedConsts.comment_colour.value)
+
     embed = discord.Embed(
         title=embed_title,
-        colour=discord.Colour(constants.RedditEmbedConsts.post_colour.value) if is_submission_post else discord.Colour(constants.RedditEmbedConsts.comment_colour.value),
+        colour=embed_colour,
         url=post["permalink"],
         description=embed_message_body,
         timestamp=embed_timestamp
