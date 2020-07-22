@@ -10,7 +10,7 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of functiona
 - **Secondary Review:** Flag a post to placed under secondary review - the post/comment will be sent to a separate channel and will ping anyone with the associated role. It can then be either approved or rejected, which will ping the user that requested the secondary review so that they know hwo to proceed.
 - **Automoderator Modifications:** Functionality to add or remove users from automoderator watchlists or shadowban lists.
 - **Database Catchup:** If the bot or any associated APIs go down, when the bot is able to reconnect, it will pull and store all posts missed during the downtime to ensure your database is complete and accurate.
-- **Reddit Moderator Actions:** If the bot is provided with moderator privileges, you can remove, lock, and approve posts, all directly from Discord using reacts.
+- **Reddit Moderator Actions:** If the bot is provided with moderator privileges, you can remove, lock, and approve posts, all directly from Discord using reacts. When an action is done via the provided reacts, the embed title is updated to show any actions taken so other moderators scrolling through the queue don't conflict with your actions.
 
 ## Requirements:
 - **MongoDB Database:** A MongoDB URI must be provided to store posts and conduct database commands.
