@@ -8,7 +8,7 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of functiona
 - **User Report System:** Generate a user report based on the posts found within the database, add moderator comments or links to previous posts to their user report.
 - **Intuitive Reacts:** Click reacts generated on posts and comments to generate user reports, get a comment tree of all negative comments on a post, flag a post or comment for secondary review, or add a post to a the user's report.
 - **Secondary Review:** Flag a post to placed under secondary review - the post/comment will be sent to a separate channel and will ping anyone with the associated role. It can then be either approved or rejected, which will ping the user that requested the secondary review so that they know hwo to proceed.
-- **Automoderator Modifications:** Functionality to add or remove users from automoderator watchlists or shadowban lists.
+- **Automoderator Modifications:** Functionality to add or remove users from automoderator watchlists or shadowban lists, synced with database filters in case either source is compromised.
 - **Database Catchup:** If the bot or any associated APIs go down, when the bot is able to reconnect, it will pull and store all posts missed during the downtime to ensure your database is complete and accurate.
 - **Reddit Moderator Actions:** If the bot is provided with moderator privileges, you can remove, lock, and approve posts, all directly from Discord using reacts. When an action is done via the provided reacts, the embed title is updated to show any actions taken so other moderators scrolling through the queue don't conflict with your actions.
 
