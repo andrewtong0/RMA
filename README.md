@@ -1,5 +1,5 @@
 # RMA
-Reddit Moderation Assistant, a Discord bot that provides a plethora of functionality that Reddit moderation tools are missing
+Reddit Moderation Assistant, a Discord bot that provides a plethora of moderation functionality through Discord's interface.
 
 ## Features:
 - **Live Feed:** All posts and comments are sent to Discord channels, Choose between a general channel that displays both posts and comments, individual post/comment channels, channels for only pings due to filters.
