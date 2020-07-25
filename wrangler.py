@@ -53,14 +53,16 @@ def remove_fields_in_range(embed, i1, i2):
     upper_range = i2
     lower_range = i1 - 1
     for index in range(lower_range, upper_range):
-        # Index to remove since list shortens as items are removed, so must be dont from back end
-        index_to_remove = upper_range - index + constants.CharacterLimits.EMBED_NUM_FIELDS.value
+        # Index to remove since list shortens as items are removed, so must be done from back end
+        index_to_remove = upper_range + lower_range - index
         embed.remove_field(index_to_remove)
-    return embed
 
 
-# Depending on the action type, will truncate embed to not hit character limit
+# Depending on the action type, will truncate embed to not hit character limit and return the embed and an additional
+#    information message in case another action was taken to provide context
 def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
+    additional_info = ""
+
     # Rolling value for embed length, updated in order of importance (so important values aren't truncated early)
     num_chars_so_far = 0
 
@@ -87,6 +89,7 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
     # If the character limit of the fields along with title/description exceed limit, take action on fields
     fields = embed.fields
     if len(fields) > 0:
+        # TODO: This currently doesn't do anything anymore since the additional_info is attached now
         # Reserve characters for truncate string just in case
         num_chars_so_far += len(constants.StringConstants.EMBED_FIELD_TRUNCATE_MESSAGE.value) + constants.StringConstants.EMBED_FIELD_TRUNCATE_NUMBER.value
 
@@ -109,16 +112,19 @@ def truncate_embed(embed, action=constants.MessageLimitActions.TRUNCATE):
                                inline=field.inline)
 
             # If after taking into account this field we exceed limit, truncate current and additional fields
-            if num_chars_so_far > constants.CharacterLimits.EMBED_TOTAL_CHARS.value:
+            if num_chars_so_far >= constants.CharacterLimits.EMBED_TOTAL_CHARS.value:
                 # TRUNCATE: Remove all additional fields including this one and list how many more remaining
                 if action == constants.MessageLimitActions.TRUNCATE:
-                    embed = remove_fields_in_range(embed, index, range(len(fields)))
-                    embed.footer += constants.StringConstants.EMBED_FIELD_TRUNCATE_MESSAGE.format(len(fields) - index - 1)
+                    remove_fields_in_range(embed, index, len(fields))
+                    additional_info = constants.StringConstants.EMBED_FIELD_TRUNCATE_MESSAGE.value.format(len(fields) - index - 1)
                     break
                 # TODO: Implement additional truncation methods
                 # elif action == constants.MessageLimitActions.MULTI:
                 # elif action == constants.MessageLimitActions.PAGINATE:
-    return embed
+    return {
+        "embed": embed,
+        "additional_info": additional_info
+    }
 
 
 def get_subreddit_colour(subreddit):
@@ -209,7 +215,7 @@ def construct_reddit_message(subreddit, post, triggered_matches):
     embed.set_footer(text=footer_content,
                      icon_url=constants.RedditEmbedConsts.icon.value)
 
-    embed = truncate_embed(embed)
+    embed = truncate_embed(embed)["embed"]
 
     output = {
         "embed": embed,
@@ -254,7 +260,7 @@ def construct_user_report_embed(user_posts, username, user_data):
     embed.set_author(name=constants.BotAuthorDetails.NAME.value,
                      icon_url=constants.BotAuthorDetails.ICON_URL.value)
 
-    embed = truncate_embed(embed)
+    embed = truncate_embed(embed)["embed"]
     return embed
 
 
@@ -275,7 +281,7 @@ def construct_user_moderator_comments_embed(user_data, username):
     embed.set_author(name=constants.BotAuthorDetails.NAME.value,
                      icon_url=constants.BotAuthorDetails.ICON_URL.value)
 
-    embed = truncate_embed(embed)
+    embed = truncate_embed(embed)["embed"]
     return embed
 
 
@@ -341,8 +347,8 @@ def construct_negative_comment_tree_embed(submission, comments):
         embed.add_field(name=name_and_karma,
                         value=body,
                         inline=False)
-    embed = truncate_embed(embed)
-    return embed
+    embed_and_info = truncate_embed(embed)
+    return embed_and_info
 
 
 async def add_user_reacts_to_string(reaction, vote_icon_string, bot_uuid):
@@ -413,7 +419,7 @@ async def construct_approve_or_reject_review_embed(reviewed_post_embed, review_r
     embed.set_author(
         name="Secondary Review Status"
     )
-    embed = truncate_embed(embed)
+    embed = truncate_embed(embed)["embed"]
     return embed
 
 

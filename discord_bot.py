@@ -253,7 +253,7 @@ def construct_ping_reasoning_block_string(matches):
 # is stored before it can be queried. Override bypasses this check and adds the flair.
 async def send_main_post_message_and_add_reactions(channel, embed, override=False, flag_reaction=True, additional_message=""):
     # TODO: Make this the only truncation since this feels like double truncation
-    truncated_embed = wrangler.truncate_embed(embed)
+    truncated_embed = wrangler.truncate_embed(embed)["embed"]
     message = None
     if len(truncated_embed) + len(additional_message) > constants.CharacterLimits.EMBED_TOTAL_CHARS.value:
         await channel.send(content=additional_message)
@@ -335,13 +335,16 @@ def check_message_is_from_bot(message):
 
 # Returns all comments from a post with negative karma values
 def get_negative_comment_tree(submission):
-    pruned_comments = []
-    comments = praw_operations.request_sorted_comments(submission)
-    # Remove all comments >= 0 karma
-    for comment in comments:
-        if comment.score < 0:
-            pruned_comments.append(comment)
-    return pruned_comments
+    if submission is not None:
+        pruned_comments = []
+        comments = praw_operations.request_sorted_comments(submission)
+        # Remove all comments >= 0 karma
+        for comment in comments:
+            if comment.score < 0:
+                pruned_comments.append(comment)
+        return pruned_comments
+    else:
+        return None
 
 
 def get_embed_post_id(embed):
@@ -408,10 +411,14 @@ async def handle_reaction(reaction, user):
         # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
         elif react_emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
             post_id = get_embed_post_id(message_main_embed)
-            submission = praw_operations.request_post(post_id, constants.PostTypes.REDDIT_SUBMISSION)
+            submission = praw_operations.request_post(post_id, constants.PostTypes.REDDIT_SUBMISSION.value)
             comments = get_negative_comment_tree(submission)
-            embed = wrangler.construct_negative_comment_tree_embed(submission, comments)
+            embed_and_info = wrangler.construct_negative_comment_tree_embed(submission, comments)
+            embed = embed_and_info["embed"]
+            additional_info = embed_and_info["additional_info"]
             generated_message = await message.channel.send(embed=embed)
+            if additional_info is not "":
+                await message.channel.send(content=additional_info)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # Sends post to secondary review channel
         elif react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_FLAG.value:
