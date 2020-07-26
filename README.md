@@ -1,6 +1,9 @@
 # RMA
 Reddit Moderation Assistant, a Discord bot that provides a plethora of moderation functionality through Discord's interface.
 
+## How and Why
+RMA is a Discord bot created in Python. With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation.
+
 ## Features:
 - **Live Feed:** All posts and comments are sent to Discord channels, Choose between a general channel that displays both posts and comments, individual post/comment channels, channels for only pings due to filters.
 - **Database Integration:** RMA stores all found comments and posts into a separate database. If a user deletes their post or comment, the content will still be stored and associated to the user for reference.
