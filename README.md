@@ -2,7 +2,18 @@
 Reddit Moderation Assistant, a Discord bot that provides a plethora of moderation functionality through Discord's interface.
 
 ## How and Why
-With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation. Furthermore, some design decisions work against moderators. For example, incriminating users can delete their posts and comments, and no history of what they said can be recovered.
+With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation.
+
+### Problems with Reddit's Moderator Functionality:
+- **No Archiving:** If users delete their posts or comments, no history of what they said can be found. If bans are not extensively documented, users can delete their posts and play coy, and moderators will be forced to rely on themselves to remember why users were banned.
+- **No User Comments:** If moderators find troublesome users, there is no ability to tag users so other moderators know to watch out for them.
+- **Clunky Interface:** Especially with new Reddit, posts can take several seconds to load. While this may seem trivial, it builds up, especially with large moderation queues.
+- **Poor Moderator Action UX/UI:** Also trivial, moderator actions such as post removal/approval are not easily distinguishable among other actions (e.g. saving posts, hiding posts, etc.).
+
+### Stopgap Solutions to the above:
+- **ceddit and removeddit:** There are sites that archive deleted posts and comments (assuming they have adequate time to archive them), but you cannot query by username, which is often useful for disputing ban appeals.
+- **Reddit Enhancement Suite (RES):** RES is a fantastic browser extension that adds lots of helpful tools, including user comments. Unfortunately these only appear if other moderators have the 'Wiki' permission (which in my use case, one of ours didn't).
+- **Old Reddit:** Old Reddit can still be used opposed to new Reddit, which has significantly faster loading times. However, the overall interface may be more intimidating to casual users.
 
 ## Features:
 - **Live Feed:** Posts are periodically fetched and sent to the Discord channels that you specify.
