@@ -199,16 +199,20 @@ def get_redditor(username):
     return reddit.redditor(username)
 
 
+# Determines the highest priority of action to be taken
 def determine_priority_action(post_and_matches):
-    priority_action = ""
+    # Default at 0, all actions are > 0
+    priority_action = 0
+    action_dictionary = user_preferences.ActionPriorityDictionary
     matches = post_and_matches["matches"]
     for match in matches:
         match_action = match["action"]
-        if match_action == constants.FilterActions.REMOVE.value:
-            priority_action = constants.RedditFilterActions.SHADOWBAN.value
-        elif match_action == constants.FilterActions.MONITOR.value and priority_action != constants.RedditFilterActions.SHADOWBAN.value:
-            priority_action = constants.RedditFilterActions.WATCHLIST.value
-    return priority_action
+        if match_action in action_dictionary.keys():
+            current_action = action_dictionary[match_action]
+            if current_action > priority_action:
+                priority_action = current_action
+    final_action = action_dictionary[str(priority_action)]
+    return final_action
 
 
 def request_post(post_id, post_type):

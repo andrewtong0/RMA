@@ -241,6 +241,14 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
             await channel.send(content=followup_message)
 
 
+async def send_message_to_channels(channel_ids, message):
+    channels = []
+    for channel_id in channel_ids:
+        channels.append(get_channel_from_id(channel_id))
+    for channel in channels:
+        await channel.send(content=message)
+
+
 def construct_ping_reasoning_block_string(matches):
     matches_string = ""
     for match in matches:
@@ -291,9 +299,15 @@ async def send_message_and_potentially_ping(post_and_matches, subreddit_and_chan
     await send_message(constants.Platforms.REDDIT.value, subreddit_and_channels, post, matches, roles_to_ping)
 
 
-# We take action on all posts, regardless if they have matches (if there are no matches, we only send a message)
-async def actions_on_posts(post_and_matches, subreddit_and_channels):
+# Take the required action on the post
+async def actions_on_post(post_and_matches, subreddit_and_channels):
     priority_action = praw_operations.determine_priority_action(post_and_matches)
+    if priority_action == constants.FilterActions.REMOVE.value and subreddit_and_channels.has_mod:
+        post_id = post_and_matches["post"]["_id"]
+        post_type = post_and_matches["post"]["post_type"]
+        praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
+        await send_message_to_channels(subreddit_and_channels.ping_channel_ids, constants.FilterActions.REMOVE_MESSAGE.value)
+
     # TODO: Integrate priority action into ping message so we know what action is taken
     await send_message_and_potentially_ping(post_and_matches, subreddit_and_channels)
 
@@ -322,7 +336,7 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
         # print(new_posts)
     posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
-        await actions_on_posts(post_and_matches, subreddit_and_channels)
+        await actions_on_post(post_and_matches, subreddit_and_channels)
 
 
 def check_user_is_not_bot(user_to_check):

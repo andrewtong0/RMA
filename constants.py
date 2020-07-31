@@ -19,6 +19,7 @@ class PostTypes(Enum):
 # Enumeration to store filter actions
 class FilterActions(Enum):
     REMOVE = "remove"
+    REMOVE_MESSAGE = "Post Removed"
     MONITOR = "monitor"
 
 
