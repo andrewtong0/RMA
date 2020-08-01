@@ -207,6 +207,8 @@ def determine_priority_action(post_and_matches):
     matches = post_and_matches["matches"]
     for match in matches:
         match_action = match["action"]
+        if type(match_action) == dict:
+            match_action = match_action["action"]
         if match_action in action_dictionary.keys():
             current_action = action_dictionary[match_action]
             if current_action > priority_action:
