@@ -236,6 +236,9 @@ def construct_user_report_embed(user_posts, username, user_data):
         description=("Karma: {} / Tags: {}".format(str(user_karma), tags_string))
     )
 
+    # Add moderator comments to embed
+    embed = add_mod_comment_embed_fields(embed, user_data)
+
     for post in user_posts:
         is_submission_post = is_post_submission(post)
         embed.add_field(
@@ -253,9 +256,6 @@ def construct_user_report_embed(user_posts, username, user_data):
             value=str(post_utc_to_timestamp(post)),
             inline=True
         )
-
-    # Add moderator comments to embed
-    embed = add_mod_comment_embed_fields(embed, user_data)
 
     embed.set_author(name=constants.BotAuthorDetails.NAME.value,
                      icon_url=constants.BotAuthorDetails.ICON_URL.value)
