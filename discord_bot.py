@@ -548,10 +548,13 @@ async def add_match(context, filter_name, new_match):
 
 @client.command()
 async def bulk_add_match(context, filter_name, *matches):
-    for match in matches:
-        match = match.replace(",", "")
-        await add_match(context, filter_name, match)
-    await context.send("Bulk match adding complete. ")
+    if filter_name not in user_preferences.RegexFilters:
+        for match in matches:
+            match = match.replace(",", "")
+            await add_match(context, filter_name, match)
+        await context.send("Bulk match adding complete. ")
+    else:
+        await context.send("Bulk match adding is not supported for regex filters (since commas and spaces are used to separate matches, which conflicts with regex).")
 
 
 @client.command()
