@@ -431,7 +431,7 @@ async def handle_reaction(reaction, user):
             embed = embed_and_info["embed"]
             additional_info = embed_and_info["additional_info"]
             generated_message = await message.channel.send(embed=embed)
-            if additional_info is not "":
+            if additional_info != "":
                 await message.channel.send(content=additional_info)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # Sends post to secondary review channel

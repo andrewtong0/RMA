@@ -156,6 +156,7 @@ class StringConstants(Enum):
     STRING_COMMENT = "Comment"
     TIMESTAMP_TITLE = "Timestamp"
     STRING_TRUNCATE = "..."
+    TRUNCATE_CODE_BLOCK_CHARS = '```'
     EMBED_FIELD_TRUNCATE_MESSAGE = "Embed truncated to exclude {} post(s)."
     EMBED_FIELD_TRUNCATE_NUMBER = 6  # For above string, we reserve this many characters for the count of # posts removed (e.g. 6 = a 6 digit number)
     SECONDARY_REVIEW_TITLE_PREFIX = "Secondary review requested"

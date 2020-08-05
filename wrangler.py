@@ -142,7 +142,7 @@ def construct_reddit_message(subreddit, post, triggered_matches):
     # TODO: Tidy this up, currently very messy
     # Add post flair if submission post
     post_flair_raw = ""
-    if is_submission_post:
+    if is_submission_post and "extra_info" in post.keys():
         post_flair_raw = post["extra_info"]["initial_flair"] if post["extra_info"]["initial_flair"] is not None else "UNFLAIRED"
     post_flair = "[" + post_flair_raw + "] " if is_submission_post else ""
 
@@ -433,8 +433,11 @@ def truncate_message(message):
     if len(message) > char_limit:
         remaining_message = message
         while len(remaining_message) > char_limit:
-            output_messages += truncate_message_helper(remaining_message, char_limit)
-            remaining_message = output_messages[len(output_messages) - 1]
+            truncated_messages = truncate_message_helper(remaining_message, char_limit)
+            output_messages.append(truncated_messages[0])
+            remaining_message = truncated_messages[len(truncated_messages) - 1]
+        if remaining_message not in output_messages:
+            output_messages.append(remaining_message)
     else:
         output_messages = [message]
 
@@ -443,7 +446,9 @@ def truncate_message(message):
 
 # Returns 2 strings, one that hits character limit, and one as remaining characters
 def truncate_message_helper(message, char_limit):
-    if len(message) > char_limit:
+    code_block_indicator = constants.StringConstants.TRUNCATE_CODE_BLOCK_CHARS.value
+    if len(message) + len(code_block_indicator) * 2 > char_limit:
         return [message[:char_limit], message[char_limit:]]
     else:
-        return [message]
+        verified_message = code_block_indicator + message + code_block_indicator
+        return [verified_message]
