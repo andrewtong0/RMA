@@ -232,3 +232,8 @@ def clear_ignore_buffer():
         {"name": constants.DatabaseMetadataInfo.IGNORE_BUFFER_NAME.value},
         {"$set": {"items": []}}
     )
+
+
+def update_media_source_history_matches(filter_name, updated_matches):
+    filter_name_object = {"name": filter_name}
+    db.filters.find_one_and_update(filter_name_object, {"$set": {"matches": updated_matches}})

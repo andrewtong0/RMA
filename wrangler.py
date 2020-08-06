@@ -428,16 +428,18 @@ async def construct_approve_or_reject_review_embed(reviewed_post_embed, review_r
 def truncate_message(message):
     output_messages = []
     char_limit = constants.CharacterLimits.REGULAR_MESSAGE.value
+    code_block_indicator = constants.StringConstants.TRUNCATE_CODE_BLOCK_CHARS.value
+    code_block_indicator_len = len(code_block_indicator)
 
     # TODO: This can be tidied up to not use a conditional
     if len(message) > char_limit:
         remaining_message = message
-        while len(remaining_message) > char_limit:
+        while len(remaining_message) + code_block_indicator_len * 2 > char_limit:
             truncated_messages = truncate_message_helper(remaining_message, char_limit)
             output_messages.append(truncated_messages[0])
             remaining_message = truncated_messages[len(truncated_messages) - 1]
         if remaining_message not in output_messages:
-            output_messages.append(remaining_message)
+            output_messages.append(code_block_indicator + remaining_message + code_block_indicator)
     else:
         output_messages = [message]
 
@@ -448,7 +450,9 @@ def truncate_message(message):
 def truncate_message_helper(message, char_limit):
     code_block_indicator = constants.StringConstants.TRUNCATE_CODE_BLOCK_CHARS.value
     if len(message) + len(code_block_indicator) * 2 > char_limit:
-        return [message[:char_limit], message[char_limit:]]
+        char_limit_with_code_indicators = char_limit - len(code_block_indicator) * 2
+        verified_message = code_block_indicator + message[:char_limit_with_code_indicators] + code_block_indicator
+        return [verified_message, message[char_limit_with_code_indicators:]]
     else:
         verified_message = code_block_indicator + message + code_block_indicator
         return [verified_message]
