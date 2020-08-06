@@ -2,7 +2,7 @@
 Reddit Moderation Assistant, a Discord bot that provides a plethora of moderation functionality through Discord's interface.
 
 ## How and Why
-With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation.
+With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation. It also allows for a live shared moderator queue where moderators can collaborate and work simultaneously to ensure actions aren't overlapped.
 
 ### Problems with Reddit's Moderator Functionality:
 - **No Archiving:** If users delete their posts or comments, no history of what they said can be found. If bans are not extensively documented, users can delete their posts and play coy, and moderators will be forced to rely on themselves to remember why users were banned.
