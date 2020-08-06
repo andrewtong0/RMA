@@ -64,9 +64,11 @@ def _find_reddit_matches_for_post(filters, post):
                     # If the media has been posted before
                     if found_match:
                         match_object = compare_media_to_cooldown(found_match, post, content_filter["action"]["cooldown"])
-                        found_matches.append(match_object)
-                        updated_matches = update_history_media_title_by_title(media_title, content_filter["matches"], post)
-                        db_collection_operations.update_media_source_history_matches(content_filter["name"], updated_matches)
+                        # If the post violates the cooldown
+                        if match_object["violates_cooldown"]:
+                            found_matches.append(match_object)
+                            updated_matches = update_history_media_title_by_title(media_title, content_filter["matches"], post)
+                            db_collection_operations.update_media_source_history_matches(content_filter["name"], updated_matches)
                     # If the media is a match for the parent but hasn't been posted, add it to the filter
                     else:
                         match_to_add = {"match": media_title, "date_added": datetime.datetime.fromtimestamp(post["created_time"]["utc"])}

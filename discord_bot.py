@@ -506,6 +506,18 @@ async def handle_reaction(reaction, user):
             await message.delete()
 
 
+# Throws NoPostOrCommentFound exception if filter name is not in database filters
+async def is_filter_name_valid(filter_name, context):
+    try:
+        for db_filter in db_filters:
+            if db_filter["name"] == filter_name:
+                return True
+        raise exceptions.NoPostOrCommentFound
+    except exceptions.NoPostOrCommentFound:
+        await context.send(content="The specified filter could not be found. Please double-check the filter name.")
+        return False
+
+
 # ============
 # BOT COMMANDS
 # ============
@@ -515,6 +527,10 @@ async def handle_reaction(reaction, user):
 # Add match to filter
 @client.command()
 async def add_match(context, filter_name, new_match):
+    filter_name_valid = await is_filter_name_valid(filter_name, context)
+    if not filter_name_valid:
+        return
+
     # Preliminary check before adding to the database in case new match shouldn't be added
     if filter_name in user_preferences.RegexFilters:
         if not is_match_valid_regex(new_match):
@@ -548,6 +564,10 @@ async def add_match(context, filter_name, new_match):
 
 @client.command()
 async def bulk_add_match(context, filter_name, *matches):
+    filter_name_valid = await is_filter_name_valid(filter_name, context)
+    if not filter_name_valid:
+        return
+
     if filter_name not in user_preferences.RegexFilters:
         for match in matches:
             match = match.replace(",", "")
@@ -559,6 +579,10 @@ async def bulk_add_match(context, filter_name, *matches):
 
 @client.command()
 async def remove_match(context, filter_name, match_to_remove):
+    filter_name_valid = await is_filter_name_valid(filter_name, context)
+    if not filter_name_valid:
+        return
+
     remove_result = db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditOperationTypes.REMOVE.value)
     if remove_result:
         # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
@@ -584,6 +608,10 @@ async def remove_match(context, filter_name, match_to_remove):
 
 @client.command()
 async def get_matches(context, filter_name):
+    filter_name_valid = await is_filter_name_valid(filter_name, context)
+    if not filter_name_valid:
+        return
+
     matches = db_collection_operations.get_matches(filter_name)
     if matches:
         matches = matches["matches"]
@@ -706,6 +734,12 @@ async def on_reaction_add(reaction, user):
     await handle_reaction(reaction, user)
     if environment_variables.DEV_MODE:
         print("React interacted with: {}".format(reaction))
+
+
+@client.event
+async def on_command_error(context, exception):
+    if exception.__class__ == discord.ext.commands.errors.MissingRequiredArgument:
+        await context.send("Your command is missing one or more arguments. Please double-check your input and try again.")
 
 
 # Initialize and run Discord bot

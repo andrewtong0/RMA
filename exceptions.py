@@ -11,3 +11,9 @@ class AutomodRemovalNotFound(Exception):
 # When neither a post or comment with the provided ID can be found
 class NoPostOrCommentFound(Exception):
     pass
+
+
+# USED IN: discord_bot.py is_filter_name_valid() (used by various commands)
+# When a provided filter name for a command does not match any filter
+class InvalidFilterName(Exception):
+    pass
