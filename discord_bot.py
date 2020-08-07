@@ -40,7 +40,7 @@ def set_metadata():
 
 
 # Return roles matching names in roles_to_find
-def find_role(roles, roles_to_find):
+def find_roles(roles, roles_to_find):
     found_roles = []
     for role_to_find in roles_to_find:
         found_role = next(role for role in roles if role_to_find == role.name)
@@ -221,7 +221,7 @@ async def send_message(platform, subreddit_and_channels, reddit_object, triggere
 
     if roles_to_ping:  # TODO: Also take into account the platform for pings
         server_roles = get_roles()
-        found_roles = find_role(server_roles, roles_to_ping)  # TODO: Refactor guilds[0]
+        found_roles = find_roles(server_roles, roles_to_ping)  # TODO: Refactor guilds[0]
 
         # Pings do not work in embeds, so they must be done as a separate, non-embed message
         if found_roles:
@@ -406,7 +406,8 @@ def add_emoji_to_embed_title(embed, emoji):
 # Action is either add or remove, not other options (due to the else block catching all)
 async def edit_message_embed_with_emoji(message, embed, emoji, action):
     new_embed = add_emoji_to_embed_title(embed, emoji) if action == constants.RedditOperationTypes.ADD.value else remove_emoji_from_embed_title(embed, emoji)
-    await message.edit(embed=new_embed)
+    truncated_embed = wrangler.truncate_embed(new_embed)["embed"]
+    await message.edit(embed=truncated_embed)
 
 
 # Splits initial reaction to appropriate call
@@ -444,14 +445,20 @@ async def handle_reaction(reaction, user):
                 if subreddit == subreddit_and_channels.subreddit:
                     selected_sub_and_ch = subreddit_and_channels
                     break
+            if selected_sub_and_ch is None:
+                await reaction.message.channel.send(content="An internal error has occurred and the specified subreddit could not be found.")
+                return
             server_roles = get_roles()
-            secondary_review_role = find_role(server_roles, [user_preferences.Settings.BOT_SECONDARY_REVIEW_ROLE.value])
+            secondary_review_role = find_roles(server_roles, [user_preferences.Settings.BOT_SECONDARY_REVIEW_ROLE.value])
             flag_message_channels = get_channels_of_type(constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_SECONDARY_REVIEW.value, selected_sub_and_ch)
-            for channel in flag_message_channels:
-                reviewer_ping = secondary_review_role[0].mention + " " if secondary_review_role is not [] else ""
-                request_message = "{}{} {} {} ({})".format(reviewer_ping, constants.StringConstants.SECONDARY_REVIEW_TITLE_PREFIX.value, constants.StringConstants.SECONDARY_REVIEW_REQUESTED_BY_SEPARATOR.value, user.name, user.id)
-                await send_main_post_message_and_add_reactions(channel, original_embed, False, False, request_message)
-            await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
+            if secondary_review_role and flag_message_channels:
+                for channel in flag_message_channels:
+                    reviewer_ping = secondary_review_role[0].mention + " " if secondary_review_role is not [] else ""
+                    request_message = "{}{} {} {} ({})".format(reviewer_ping, constants.StringConstants.SECONDARY_REVIEW_TITLE_PREFIX.value, constants.StringConstants.SECONDARY_REVIEW_REQUESTED_BY_SEPARATOR.value, user.name, user.id)
+                    await send_main_post_message_and_add_reactions(channel, original_embed, False, False, request_message)
+                await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
+            else:
+                await reaction.message.channel.send(content="The secondary review role could not be found or the associated channel to send reviewed content to could not be found.")
         # Handle secondary review approve/reject
         elif react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_APPROVE.value or react_emoji == constants.RedditReactEmojis.SECONDARY_REVIEW_REJECT.value:
             is_approved = False
@@ -706,7 +713,7 @@ async def remove_user_comment(context, username, comment_id):
 @client.command()
 async def subscribe(context, role):
     server_roles = get_roles()
-    found_roles = find_role(server_roles, [role])
+    found_roles = find_roles(server_roles, [role])
 
     if not found_roles:
         await context.channel.send("Failed to find role.")
@@ -719,7 +726,7 @@ async def subscribe(context, role):
 @client.command()
 async def unsubscribe(context, role):
     server_roles = get_roles()
-    found_roles = find_role(server_roles, [role])
+    found_roles = find_roles(server_roles, [role])
 
     if not found_roles:
         await context.channel.send("Failed to find role.")
