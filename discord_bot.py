@@ -626,7 +626,7 @@ async def get_matches(context, filter_name):
         for match in matches:
             matches_output += match + ", "
         matches_output = matches_output[:-2]  # Remove extra comma and space after last element
-        messages_output = wrangler.truncate_message(matches_output)
+        messages_output = wrangler.truncate_message_into_code_blocks(matches_output)
         for message in messages_output:
             await context.send(message)
     else:

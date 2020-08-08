@@ -2,6 +2,7 @@ import re
 import constants
 import datetime
 import db_collection_operations
+import user_preferences
 
 
 # Apply all filters across all Reddit content
@@ -32,11 +33,18 @@ def _find_reddit_matches_for_post(filters, post):
         filter_type = content_filter["type"]
         # If content is coming from Reddit
         if content_filter["platform"] == constants.Platforms.REDDIT.value:
-            # If filter is of user filter type and user is in matches, add match
-            if filter_type == constants.RedditFilterTypes.USERS.value and post["author"]["username"] in content_filter["matches"]:
-                matches_for_post = add_matched_filter(matches_for_post, content_filter, post["author"]["username"])
-            # If filter is of post type
 
+            # If filter is of user filter type and user is in matches, add match
+            if filter_type == constants.RedditFilterTypes.USERS.value:
+                if content_filter["name"] in user_preferences.RegexFilters:
+                    # TODO: Create a function that takes in list of regex phrases and content_filter["matches"] to modularize this and the posts regex
+                    for regex_phrase in content_filter["matches"]:
+                        if re.search(regex_phrase, post["author"]["username"]):
+                            matches_for_post = add_matched_filter(matches_for_post, content_filter, regex_phrase)
+                elif post["author"]["username"] in content_filter["matches"]:
+                    matches_for_post = add_matched_filter(matches_for_post, content_filter, post["author"]["username"])
+
+            # If filter is of post type
             elif filter_type == constants.RedditFilterTypes.POSTS.value:
                 # Check post against all regex phrases
                 for regex_phrase in content_filter["matches"]:

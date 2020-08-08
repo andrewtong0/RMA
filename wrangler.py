@@ -424,15 +424,15 @@ async def construct_approve_or_reject_review_embed(reviewed_post_embed, review_r
 
 
 # TODO: Make this not split words into two, escape characters (or perhaps just make it a code block)
-# Return array of truncated strings to bypass character limit as several messages
-def truncate_message(message):
+# Return array of truncated strings to bypass character limit as several messages sent as code blocks
+def truncate_message_into_code_blocks(message):
     output_messages = []
     char_limit = constants.CharacterLimits.REGULAR_MESSAGE.value
     code_block_indicator = constants.StringConstants.TRUNCATE_CODE_BLOCK_CHARS.value
     code_block_indicator_len = len(code_block_indicator)
 
     # TODO: This can be tidied up to not use a conditional
-    if len(message) > char_limit:
+    if len(message) + code_block_indicator_len * 2 > char_limit:
         remaining_message = message
         while len(remaining_message) + code_block_indicator_len * 2 > char_limit:
             truncated_messages = truncate_message_helper(remaining_message, char_limit)
@@ -441,8 +441,8 @@ def truncate_message(message):
         if remaining_message not in output_messages:
             output_messages.append(code_block_indicator + remaining_message + code_block_indicator)
     else:
+        message = code_block_indicator + message + code_block_indicator
         output_messages = [message]
-
     return output_messages
 
 
