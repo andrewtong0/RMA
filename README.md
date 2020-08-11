@@ -33,3 +33,4 @@ With Reddit's new web design, moderation has become slow, clunky, and inconsiste
 
 ## Roadmap:
 - **Standalone Client?** Potential for a standalone client to manage this, external from Discord.
+- **General Acceptance:** RMA is nearing GA for a full release.
