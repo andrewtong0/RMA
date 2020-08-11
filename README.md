@@ -9,6 +9,7 @@ With Reddit's new web design, moderation has become slow, clunky, and inconsiste
 - **No User Comments:** If moderators find troublesome users, there is no ability to tag users so other moderators know to watch out for them.
 - **Clunky Interface:** Especially with new Reddit, posts can take several seconds to load. While this may seem trivial, it builds up, especially with large moderation queues.
 - **Poor Moderator Action UX/UI:** Also trivial, moderator actions such as post removal/approval are not easily distinguishable among other actions (e.g. saving posts, hiding posts, etc.).
+- **New Chat System Rushed:** Reddit also rolled out a new chat system to appeal to newer users, but there were plenty of shortcomings with its implementation. For one, there is no way to dismiss the new chat notification icon unless you either accept or deny the request. On paper this seems fine, but if you choose to deny the request, it automatically deletes the message logs the user has sent. For moderators, this is terrible because if a moderator chooses to ignore a message, they lose all message history. Furthermore, chat rooms are expected to be moderated, yet do not support automoderator filters, a significant issue making moderation very difficult.
 
 ### Stopgap Solutions to the above:
 - **ceddit and removeddit:** There are sites that archive deleted posts and comments (assuming they have adequate time to archive them), but you cannot query by username, which is often useful for disputing ban appeals.
