@@ -71,7 +71,7 @@ metadata_dict = set_metadata()
 @client.event
 async def on_ready():
     print('Discord Logged in as', client.user)
-    await client.change_presence(activity=discord.Game(name='***REMOVED***'))
+    await client.change_presence(activity=discord.Game(name='My prefix is {}'.format(user_preferences.Settings.BOT_PREFIX.value)))
     set_exceptions()
     await send_health_message(constants.BotHealthMessages.POLLING_START.value)
     await poll_new_posts.start()
