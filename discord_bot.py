@@ -736,6 +736,11 @@ async def unsubscribe(context, role):
         await context.channel.send("Successfully removed role.")
 
 
+@client.command()
+async def ping(context):
+    await context.send("Pong!")
+
+
 @client.event
 async def on_reaction_add(reaction, user):
     await handle_reaction(reaction, user)

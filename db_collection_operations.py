@@ -18,7 +18,7 @@ def attempt_add_or_remove_match(filter_name, new_match, operation_type):
     queried_matches = queried_filter["matches"]
 
     # If filter is user filter, should add/remove user tag (also has duplicate checking)
-    # TODO: attempt_add_or_remove_user_tag currently returns non-null/null - refactor to leveerage or potentially remove those returns on attempt_add_or_remove_user_tag
+    # TODO: attempt_add_or_remove_user_tag currently returns non-null/null - refactor to leverage or potentially remove those returns on attempt_add_or_remove_user_tag
     if queried_filter is not None and queried_filter["type"] == constants.RedditFilterTypes.USERS.value:
         attempt_add_or_remove_user_tag(new_match, filter_name, operation_type)
 

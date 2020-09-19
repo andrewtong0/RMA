@@ -1,6 +1,7 @@
 # Project Specific Files
 user_preferences.py
 environment_variables.py
+standalone.py
 dbtest.py
 .idea/
 RMA.zip
