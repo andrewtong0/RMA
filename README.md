@@ -3,7 +3,23 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of moderatio
 
 Check out RMA's features [here](https://andrewtong.me/RMA-Website/)!
 
-#### Setup tutorial coming soon...
+#### Full tutorial coming soon...
+
+MongoDB Required Information
+- TODO
+
+Discord Bot Required Information
+- TODO
+
+Basic Setup Tutorial
+1. Verify you have Python 3.x.x installed, the required MongoDB information, and the Discord Bot credentials (see above).
+2. Clone the repository
+3. Navigate to the repository and install the required dependencies
+`pip install -r requirements.txt`
+4. Set the required information in environment_variables.py and user_preferences.py
+- TODO (elaborate)
+5. Run the setup script (setup.py)
+6. If the setup runs successfully, the bot should be ready to use.
 
 ## How and Why
 With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation. It also allows for a live shared moderator queue where moderators can collaborate and work simultaneously to ensure actions aren't overlapped.
