@@ -3,6 +3,8 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of moderatio
 
 Check out RMA's features [here](https://andrewtong.me/RMA-Website/)!
 
+#### Setup tutorial coming soon...
+
 ## How and Why
 With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation. It also allows for a live shared moderator queue where moderators can collaborate and work simultaneously to ensure actions aren't overlapped.
 
