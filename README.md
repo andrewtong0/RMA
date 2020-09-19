@@ -35,7 +35,3 @@ With Reddit's new web design, moderation has become slow, clunky, and inconsiste
 - **MongoDB Database:** A MongoDB URI must be provided to store posts and conduct database commands.
 - **Reddit API Credentials:** In order to query for posts, Reddit API credentials are required. If moderator functinos are also desired, you must also provide login credentials for an account with moderator privileges.
 - **Discord Bot Credentials:** To host the Discord bot, you need a bot account set up with the appropriate credentials.
-
-## Roadmap:
-- **Standalone Client?** Potential for a standalone client to manage this, external from Discord.
-- **General Acceptance:** RMA is nearing GA for a full release.
