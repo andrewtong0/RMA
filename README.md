@@ -1,6 +1,6 @@
 # RMA
 
-![RMA Logo](https://i.imgur.com/m62PvVQ.jpg)
+![RMA Logo](https://i.imgur.com/g9qtToI.png)
 
 Reddit Moderation Assistant, a Discord bot that provides a plethora of moderation functionality through Discord's interface.
 
