@@ -203,7 +203,7 @@ def get_redditor(username):
 def determine_priority_action(post_and_matches):
     # Default at 0, all actions are > 0
     priority_action = 0
-    action_dictionary = user_preferences.ActionPriorityDictionary
+    action_dictionary = constants.ActionPriorityDictionary
     matches = post_and_matches["matches"]
     for match in matches:
         match_action = match["action"]

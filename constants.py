@@ -181,6 +181,17 @@ class DatabaseMetadataInfo(Enum):
     IGNORE_BUFFER_NAME = "Ignore Buffer"  # Name field for the ignore buffer in the database metadata
 
 
+ActionPriorityDictionary = {
+    FilterActions.REMOVE.value: 4,
+    "4": FilterActions.REMOVE.value,
+
+    FilterActions.MONITOR.value: 1,
+    "1": FilterActions.MONITOR.value,
+
+    "0": None
+}
+
+
 # Currently only works with 1 word strings (e.g. links) with whitespace checks
 def create_regex_string(regex_matchers):
     return ".*((" + ")|(".join(regex_matchers) + ")).*"

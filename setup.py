@@ -9,7 +9,7 @@ import praw
 
 # MONGODB INITIALIZATION
 client = pymongo.MongoClient(environment_variables.DATABASE_URI)
-db = client["RMA"]
+db = client["reddit"]
 metadata = db["metadata"]
 comments = db["comments"]
 filters = db["filters"]

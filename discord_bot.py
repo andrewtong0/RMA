@@ -57,6 +57,14 @@ def get_roles():
 # ==============
 
 
+# Single-point editing array depending on DEV_MODE flag
+SelectedSubredditsAndChannels = []
+if environment_variables.DEV_MODE:
+    SelectedSubredditsAndChannels = user_preferences.DevSubredditsAndChannels
+else:
+    SelectedSubredditsAndChannels = user_preferences.ProdSubredditsAndChannels
+
+
 print("DISCORD.PY VERSION: {}".format(discord.__version__))
 client = commands.Bot(command_prefix=user_preferences.Settings.BOT_PREFIX.value)
 db_filters = set_filters()
@@ -171,7 +179,7 @@ def is_match_valid_regex(regex):
 async def poll_new_posts():
     await send_health_message(constants.BotHealthMessages.POLLING_UP.value)
     print(poll_new_posts.next_iteration)
-    for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+    for subreddit_and_channels in SelectedSubredditsAndChannels:
         await get_new_reddit_posts(10, subreddit_and_channels)
 
 
@@ -185,7 +193,7 @@ async def on_poll_error():
 
 
 async def send_health_message(message):
-    for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+    for subreddit_and_channels in SelectedSubredditsAndChannels:
         status_channel_ids = subreddit_and_channels.status_channel_ids
         for status_channel_id in status_channel_ids:
             current_channel = get_channel_from_id(status_channel_id)
@@ -441,7 +449,7 @@ async def handle_reaction(reaction, user):
             # Extracts subreddit from footer
             subreddit = original_embed.footer.text.partition("r/")[2].partition(" |")[0]  # TODO: Refactor into constants or clean up
             selected_sub_and_ch = None
-            for subreddit_and_channels in user_preferences.SelectedSubredditsAndChannels:
+            for subreddit_and_channels in SelectedSubredditsAndChannels:
                 if subreddit == subreddit_and_channels.subreddit:
                     selected_sub_and_ch = subreddit_and_channels
                     break
