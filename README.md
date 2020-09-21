@@ -3,27 +3,73 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of moderatio
 
 Check out RMA's features [here](https://andrewtong.me/RMA-Website/)!
 
-#### Full tutorial coming soon...
+<details><summary>Setup Tutorial</summary>
+MongoDB Basic Setup
+1. Create a new project if you do not have one already
+2. On the left menu, click "Database Access", then click "ADD NEW DATABASE USER"
+3. Select the Authentication Method as "Password", set a username and password for the user and add the user - make note of the username and password as they will be necessary for the connection string
+4. Go back to the clusters from the menu on the left and click "Create a New Cluster"
+5. On the cluster you created, click the "CONNECT" button
+6. Click "Connect using MongoDB Compass"
+7. Copy the string and save this to a notepad - make sure to replace the username and password with the user you created (this is the database URI that we will need for our environment variables file)
 
-MongoDB Required Information
-- TODO
+Discord Bot Basic Setup
+1. Log in to the Discord developer portal (https://discord.com/developers/applications)
+2. Create a "New Application" and assign the application a name
+3. Copy the Client ID to a notepad - we'll need it to invite the bot to your server
+4. In the menu on the left, click the "Bot" tab, and click "Add Bot"
+5. Copy down the bot's token from this page to a notepad - we'll need to add it to the environment variables later
+6. In the following link, replace BOT_CLIENT_ID with the client ID you copied earlier (https://discordapp.com/oauth2/authorize?client_id=BOT_CLIENT_ID&scope=bot)
+7. Invite the bot to your server
+8. Assign the bot administrator privileges
+9. Create any necessary Discord channels - here's an example layout of a server
+```
+# reddit-posts-and-comments    // Post stream of posts and comments go here
+# reddit-filter-pings          // Anything caught by filters you specify will be sent here
+# secondary-review             // Any posts that other moderators request secondary review for can be found here
+```
+10. If you do not already have Discord developer mode on, enable it
+`User Settings > Appearance > Developer Mode`
+11. Right click the channels you will be using and click "Copy ID" - store these IDs (along with what channel they refer to) for later (we'll need it for the user preferences file later)
 
-Discord Bot Required Information
-- TODO
 
-Basic Setup Tutorial
+Bot Setup Tutorial
 1. Verify you have Python 3.x.x installed, the required MongoDB information, and the Discord Bot credentials (see above).
 2. Clone the repository
 3. Navigate to the repository and install the required dependencies
 `pip install -r requirements.txt`
 4. Set the required information in environment_variables.py and user_preferences.py
-- TODO (elaborate)
+```python
+# environment_variables.py
+DATABASE_URI - Your MongoDB database URI
+REDDIT_CLIENT_ID - Reddit app client ID
+REDDIT_CLIENT_SECRET - Reddit app secret
+REDDIT_USER_AGENT - String describing the use for your Reddit app (e.g. "Reddit Discord Bot")
+REDDIT_USER_USERNAME - Bot account username
+REDDIT_USER_PASSWORD - Bot account password
+LIVE_DISCORD_BOT_TOKEN - Discord bot token
+DEV_DISCORD_BOT_TOKEN - You can ignore this unless you need a separate bot instance for development
+PRIORITY_SUBREDDIT - Currently, only one subreddit can support filter sync. Since this is an advanced feature, most users can leave this string empty
+HAS_MOD - Set this to True if your bot has moderator privileges in the subreddit (this is redundant to user_preferences and will hopefully be removed in a future commit)
+DEV_MODE - Leave this as False unless you are using the bot for development purposes
+```
+```python
+# user_preferences.py
+ProdSubredditsAndChannels - Create instances of SubredditAndChannels - this is where you will need to insert the Discord channel IDs acquired from earlier (if you have difficulty with this, see below)
+RegexFilters - Any filters that contain regex matches should have their filter names added here - any filters in this array will ensure regex phrases are valid and won't crash your bot instance
+Settings.BOT_PREFIX - Specify the prefix for your bot to use
+Settings.BOT_SECONDARY_REVIEW_ROLE - Specify the name of the Discord role to ping when a secondary review is requested - ensure your role name has no spaces
+BotConsts.POLL_TIMER - The interval (in minutes) between subsequent polls for new posts/comments
+```
 5. Run the setup script (setup.py)
 6. If the setup runs successfully, the bot should be ready to use.
+
+</details>
 
 ## How and Why
 With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation. It also allows for a live shared moderator queue where moderators can collaborate and work simultaneously to ensure actions aren't overlapped.
 
+<details><summary>My rant about Reddit's current system</summary>
 ### Problems with Reddit's Moderator Functionality:
 - **No Archiving:** If users delete their posts or comments, no history of what they said can be found. If bans are not extensively documented, users can delete their posts and feign innocence, and moderators will be forced to rely on themselves to remember why users were banned. Furthermore, edits on content are not documented and users can also conceal their actions by editing previous comments or posts.
 - **No User Comments:** If moderators find troublesome users, there is no ability to tag users so other moderators know to watch out for them.
@@ -35,6 +81,7 @@ With Reddit's new web design, moderation has become slow, clunky, and inconsiste
 - **ceddit and removeddit:** There are sites that archive deleted posts and comments (assuming they have adequate time to archive them), but you cannot query by username, which is often useful for disputing ban appeals.
 - **Reddit Enhancement Suite (RES):** RES is a fantastic browser extension that adds lots of helpful tools, including user comments. Unfortunately these only appear if other moderators have the 'Wiki' permission (which in my use case, one of ours didn't).
 - **Old Reddit:** Old Reddit can still be used opposed to new Reddit, which has significantly faster loading times. However, the overall interface may be more intimidating to casual users.
+</details>
 
 ## Features:
 - **Live Feed:** Posts are periodically fetched and sent to the Discord channels that you specify.
