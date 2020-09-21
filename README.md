@@ -4,6 +4,7 @@ Reddit Moderation Assistant, a Discord bot that provides a plethora of moderatio
 Check out RMA's features [here](https://andrewtong.me/RMA-Website/)!
 
 <details><summary>Setup Tutorial</summary>
+  
 MongoDB Basic Setup
 1. Create a new project if you do not have one already
 2. On the left menu, click "Database Access", then click "ADD NEW DATABASE USER"
@@ -70,6 +71,7 @@ BotConsts.POLL_TIMER - The interval (in minutes) between subsequent polls for ne
 With Reddit's new web design, moderation has become slow, clunky, and inconsistent. Additionally, our moderation teams communicate through Discord, and having our discussions in the same place as new post feeds creates a centralized location for moderation. It also allows for a live shared moderator queue where moderators can collaborate and work simultaneously to ensure actions aren't overlapped.
 
 <details><summary>My rant about Reddit's current system</summary>
+
 ### Problems with Reddit's Moderator Functionality:
 - **No Archiving:** If users delete their posts or comments, no history of what they said can be found. If bans are not extensively documented, users can delete their posts and feign innocence, and moderators will be forced to rely on themselves to remember why users were banned. Furthermore, edits on content are not documented and users can also conceal their actions by editing previous comments or posts.
 - **No User Comments:** If moderators find troublesome users, there is no ability to tag users so other moderators know to watch out for them.
