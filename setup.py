@@ -20,8 +20,18 @@ null_object = {
     "name": "Initialization Object",
     "description": "Object to create collection. Once at least one entry exists in this collection, you can delete this object."
 }
+base_filter = {
+    "platform": "reddit",
+    "type": "users",
+    "action": "monitor",
+    "name": "Sample Filter",
+    "parent": "",
+    "description": "Sample filter to create collection. You can delete this filter once you have at least one in the collection.",
+    "matches": [],
+    "roles_to_ping": []
+}
 comments.insert_one(null_object)
-filters.insert_one(null_object)
+filters.insert_one(base_filter)
 submissions.insert_one(null_object)
 users.insert_one(null_object)
 

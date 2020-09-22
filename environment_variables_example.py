@@ -1,3 +1,8 @@
+# =====================
+# ENVIRONMENT VARIABLES
+# =====================
+# ENSURE THIS FILE IS RENAMED TO environment_variables.py AFTER YOUR INFORMATION IS SET
+
 DATABASE_URI = ""
 
 SUBREDDIT = ""
