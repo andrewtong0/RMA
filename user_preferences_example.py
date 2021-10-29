@@ -42,6 +42,10 @@ class BotConsts(Enum):
     POLL_TIMER = 5.0
 
 
+BlacklistedSubreddits = []
+BlacklistedChannelIds = []
+
+
 # ===================
 # POWER USER FEATURES
 # ===================

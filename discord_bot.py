@@ -2,6 +2,7 @@ import re
 import datetime
 import prawcore
 import discord
+import logging
 from discord.ext import tasks, commands
 
 # File imports
@@ -342,6 +343,23 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     if new_posts:
         print("{} / {} new posts found on {}".format(datetime.datetime.now(), str(len(new_posts)), subreddit_name))
         # print(new_posts)
+
+    # Scan user history for blacklisted subreddits
+    blacklisted_channels = []
+    for blacklisted_channel in user_preferences.BlacklistedChannelIds:
+        blacklisted_channels.append(get_channel_from_id(blacklisted_channel))
+    for new_post in new_posts:
+        history_object = praw_operations.scan_user_history(new_post)
+        if len(history_object) > 0:
+            removal_message = "**BLACKLISTED SUBREDDIT ACTIVITY**\n" + "User: " +\
+                              constants.RedditEmbedConsts.username_link.value + history_object["username"] + "\n" +\
+                              "Blacklisted Subreddit: r/" + history_object["infracting_subreddit"] + "\n" +\
+                              "Blacklisted Activity: " + history_object["permalink"] + "\n" +\
+                              "Current Post: " + new_post["permalink"]
+            praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
+            for channel in blacklisted_channels:
+                await channel.send(content=removal_message)
+
     posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
         await actions_on_post(post_and_matches, subreddit_and_channels)
@@ -760,6 +778,14 @@ async def on_reaction_add(reaction, user):
 async def on_command_error(context, exception):
     if exception.__class__ == discord.ext.commands.errors.MissingRequiredArgument:
         await context.send("Your command is missing one or more arguments. Please double-check your input and try again.")
+
+
+# Set up logging
+logger = logging.getLogger('discord')
+logger.setLevel(logging.DEBUG)
+handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
+handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
+logger.addHandler(handler)
 
 
 # Initialize and run Discord bot

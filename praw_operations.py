@@ -323,3 +323,20 @@ def action_on_post(post_id, action, post_type):
         post_instance.mod.lock()
     elif action == constants.RedditOperationTypes.UNLOCK.value:
         post_instance.mod.unlock()
+
+
+def scan_user_history(post):
+    username = post["author"]["username"]
+    submissions = reddit.redditor(username).new()
+    for submission in submissions:
+        post_subreddit = submission.subreddit.display_name
+        for subreddit in user_preferences.BlacklistedSubreddits:
+            if post_subreddit.lower() == subreddit.lower():
+                post_object = {
+                    "_id": submission.id,
+                    "infracting_subreddit": subreddit,
+                    "username": submission.author.name,
+                    "permalink": constants.RedditEmbedConsts.permalink_domain.value + submission.permalink
+                }
+                return post_object
+    return {}
