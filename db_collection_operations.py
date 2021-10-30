@@ -11,7 +11,7 @@ db = client.reddit
 
 # Attempts to add or remove match on filter, returns the newly updated matches if successful
 # If the filter is of user type, will also update tags
-def attempt_add_or_remove_match(filter_name, new_match, operation_type):
+async def attempt_add_or_remove_match(filter_name, new_match, operation_type):
     # Find associated filter
     filter_name_object = {"name": filter_name}
     queried_filter = db.filters.find_one(filter_name_object)
@@ -20,7 +20,7 @@ def attempt_add_or_remove_match(filter_name, new_match, operation_type):
     # If filter is user filter, should add/remove user tag (also has duplicate checking)
     # TODO: attempt_add_or_remove_user_tag currently returns non-null/null - refactor to leverage or potentially remove those returns on attempt_add_or_remove_user_tag
     if queried_filter is not None and queried_filter["type"] == constants.RedditFilterTypes.USERS.value:
-        attempt_add_or_remove_user_tag(new_match, filter_name, operation_type)
+        await attempt_add_or_remove_user_tag(new_match, filter_name, operation_type)
 
     # If adding match, push value, otherwise, pull out value
     if operation_type == constants.RedditOperationTypes.ADD.value and new_match not in queried_matches:
@@ -57,8 +57,8 @@ def get_filters():
 
 
 # Generates user comments embed
-def generate_user_comments(username):
-    user_status = add_or_update_user(username)
+async def generate_user_comments(username):
+    user_status = await add_or_update_user(username)
     if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
         user_data = get_user_data(username)
         embed = wrangler.construct_user_moderator_comments_embed(user_data, username)
@@ -68,8 +68,8 @@ def generate_user_comments(username):
 
 
 # Generates user report embed based on user posts from username
-def generate_user_report(username):
-    user_status = add_or_update_user(username)
+async def generate_user_report(username):
+    user_status = await add_or_update_user(username)
     if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
         user_posts = get_user_posts(username)
         user_data = get_user_data(username)
@@ -93,8 +93,9 @@ def get_user_posts(username):
 
 
 # Upserts user information to database, runs checks to ensure user exists/not shadowbanned
-def add_or_update_user(username):
-    userdata = praw_operations.get_redditor(username)
+async def add_or_update_user(username):
+    userdata = await praw_operations.get_redditor(username)
+    await userdata.load()
     # Shadowbanned and non-existent accounts error out
     # TODO: Try to find exploitable variable rather than using try/catch
     try:
@@ -128,8 +129,8 @@ def _add_or_update_user_db(username, userdata):
 
 
 # Attempts to add user tag, returns True on success, false on failure
-def attempt_add_or_remove_user_tag(username, role_tag, operation_type):
-    user_status = add_or_update_user(username)
+async def attempt_add_or_remove_user_tag(username, role_tag, operation_type):
+    user_status = await add_or_update_user(username)
     if user_status != constants.RedditUserUpsertStatus.SUCCESS.value:
         operation_type = constants.RedditOperationTypes.ERROR.value
     return _add_or_remove_user_tag(username, role_tag, operation_type)
@@ -154,8 +155,8 @@ def _get_user_tags(username):
 
 
 # Adds a user comment by upserting user (to ensure they exist) and adding comment
-def add_user_comment(message, username, comment_author, comment):
-    user_status = add_or_update_user(username)
+async def add_user_comment(message, username, comment_author, comment):
+    user_status = await add_or_update_user(username)
     if user_status == constants.RedditUserUpsertStatus.SUCCESS.value:
         comment_object = {
             "comment": comment,
@@ -171,8 +172,8 @@ def add_user_comment(message, username, comment_author, comment):
 
 
 # Removes a user comment
-def remove_user_comment(username, comment_id):
-    user_status = add_or_update_user(username)
+async def remove_user_comment(username, comment_id):
+    user_status = await add_or_update_user(username)
     comment = get_user_comment(username, int(comment_id))
     if user_status == constants.RedditUserUpsertStatus.SUCCESS.value and comment is not None:
         return db.users.find_one_and_update({"username": username}, {"$pull": {"mod_comments": comment}})

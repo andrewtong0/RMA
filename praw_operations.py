@@ -1,5 +1,5 @@
 import re
-import praw
+import asyncpraw as praw
 from pymongo import MongoClient
 from datetime import datetime
 import constants
@@ -18,7 +18,7 @@ reddit = praw.Reddit(client_id=environment_variables.REDDIT_CLIENT_ID,
                      username=environment_variables.REDDIT_USER_USERNAME,
                      password=environment_variables.REDDIT_USER_PASSWORD,
                      redirect_uri="http://localhost:8080")
-print("PRAW Logged in as: " + str(reddit.user.me()))
+print("PRAW Logged in successfully")
 reddit.read_only = False
 
 # Database setup
@@ -27,20 +27,29 @@ db = client.reddit
 
 
 # Gets the raw PRAW generator, and returns a list of submissions or comments
-def _get_posts(num_posts, posts_type, subreddit_name):
-    subreddit = reddit.subreddit(subreddit_name)
+async def _get_posts(num_posts, posts_type, subreddit_name):
+    subreddit = await reddit.subreddit(subreddit_name)
     if posts_type == constants.PostTypes.REDDIT_SUBMISSION:
-        return list(subreddit.new(limit=num_posts))
+        return await _convert_listing_generator_to_list(subreddit.new(limit=num_posts))
     elif posts_type == constants.PostTypes.REDDIT_COMMENT:
-        return list(subreddit.comments(limit=num_posts))
+        return await _convert_listing_generator_to_list(subreddit.comments(limit=num_posts))
+
+
+async def _convert_listing_generator_to_list(generator):
+    output_list = []
+    async for item in generator:
+        output_list.append(item)
+    return output_list
 
 
 # Constructs an entry object from a post
-def construct_entry_object(subreddit_name, post, post_type):
+async def construct_entry_object(subreddit_name, post, post_type):
     utc = post.created_utc
     timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
     content = ""
     if post.author:
+        author = post.author
+        await author.load()
         if post_type == constants.PostTypes.REDDIT_SUBMISSION:
             if post.selftext:
                 content = post.selftext
@@ -54,11 +63,11 @@ def construct_entry_object(subreddit_name, post, post_type):
                 "post_type": post_type.value,
                 "title": post.title,
                 "author": {
-                    "username": post.author.name,
-                    "uuid": post.author.id,
-                    "author_icon": post.author.icon_img,
-                    "comment_karma": post.author.comment_karma,
-                    "post_karma": post.author.link_karma
+                    "username": author.name,
+                    "uuid": author.id,
+                    "author_icon": author.icon_img,
+                    "comment_karma": author.comment_karma,
+                    "post_karma": author.link_karma
                 },
                 "created_time": {
                     "timestamp": timestamp,
@@ -94,11 +103,11 @@ def construct_entry_object(subreddit_name, post, post_type):
                 "subreddit": subreddit_name,
                 "post_type": post_type.value,
                 "author": {
-                    "username": post.author.name,
-                    "uuid": post.author.id,
-                    "author_icon": post.author.icon_img,
-                    "comment_karma": post.author.comment_karma,
-                    "post_karma": post.author.link_karma
+                    "username": author.name,
+                    "uuid": author.id,
+                    "author_icon": author.icon_img,
+                    "comment_karma": author.comment_karma,
+                    "post_karma": author.link_karma
                 },
                 "created_time": {
                     "timestamp": timestamp,
@@ -152,9 +161,9 @@ def _is_post_in_db(entry_object, post_type, ignore_buffer_items=None):
 
 
 # Gets the number of specified posts, constructs entry objects, and stores new posts in the database
-def get_and_store_posts(num_posts, post_type, subreddit_name):
-    posts = _get_posts(num_posts, post_type, subreddit_name)
-    entry_objects = [construct_entry_object(subreddit_name, post, post_type) for post in posts]
+async def get_and_store_posts(num_posts, post_type, subreddit_name):
+    posts = await _get_posts(num_posts, post_type, subreddit_name)
+    entry_objects = [await construct_entry_object(subreddit_name, post, post_type) for post in posts]
     entry_objects = remove_invalid_posts(entry_objects)
     new_posts = store_entry_objects(entry_objects, post_type)
     print("Posts retrieved")
@@ -162,17 +171,20 @@ def get_and_store_posts(num_posts, post_type, subreddit_name):
 
 
 # Will repeatedly get posts on each iteration increasing by post_chunk_size until a post was already stored
-def get_and_store_unstored(post_chunk_size, post_type, subreddit_name, ignore_buffer_items):
+async def get_and_store_unstored(post_chunk_size, post_type, subreddit_name, ignore_buffer_items):
     num_queries = 1
     new_posts = []
     while True:
-        posts = _get_posts(post_chunk_size * num_queries, post_type, subreddit_name)
-        entry_objects = [construct_entry_object(subreddit_name, post, post_type) for post in
+        posts = await _get_posts(post_chunk_size * num_queries, post_type, subreddit_name)
+        entry_objects = [await construct_entry_object(subreddit_name, post, post_type) for post in
                          posts[(post_chunk_size * -1):]]
         entry_objects = remove_invalid_posts(entry_objects)
         sorted_entry_objects = sort_by_created_time(entry_objects, False)
-        were_all_already_stored = _is_post_in_db(sorted_entry_objects[-1], post_type, ignore_buffer_items)
-        if were_all_already_stored:
+        are_all_posts_stored = True
+        for entry_object in sorted_entry_objects:
+            if not _is_post_in_db(entry_object, post_type, ignore_buffer_items):
+                are_all_posts_stored = False
+        if are_all_posts_stored:
             break
         new_posts = store_entry_objects(entry_objects, post_type)
         print("Query " + str(num_queries) + "...")
@@ -195,8 +207,8 @@ def sort_by_created_time(post_list, is_reversed):
     return output_list
 
 
-def get_redditor(username):
-    return reddit.redditor(username)
+async def get_redditor(username):
+    return await reddit.redditor(username)
 
 
 # Determines the highest priority of action to be taken
@@ -217,18 +229,18 @@ def determine_priority_action(post_and_matches):
     return final_action
 
 
-def request_post(post_id, post_type):
+async def request_post(post_id, post_type):
     if post_type == constants.PostTypes.REDDIT_SUBMISSION.value:
-        return reddit.submission(id=post_id)
+        return await reddit.submission(id=post_id)
     elif post_type == constants.PostTypes.REDDIT_COMMENT.value:
-        return reddit.comment(post_id)
+        return await reddit.comment(post_id)
 
 
 # TODO: Find a better way to check if a post/comment ID is invalid
 # When it is unknown whether the provided ID is a post or comment, return whatever is found
-def attempt_to_request_post(post_id):
-    submission_attempt = reddit.submission(id=post_id)
-    comment_attempt = reddit.comment(id=post_id)
+async def attempt_to_request_post(post_id):
+    submission_attempt = await reddit.submission(id=post_id)
+    comment_attempt = await reddit.comment(id=post_id)
     try:
         # Dummy variable to test if accessing comments throws an exception, which it does if the post ID is invalid
         comments = submission_attempt.comments
@@ -242,10 +254,11 @@ def attempt_to_request_post(post_id):
             raise exceptions.NoPostOrCommentFound
 
 
-def request_sorted_comments(submission):
+async def request_sorted_comments(submission):
     # Raw list of all comments (recursed through comment trees)
-    submission.comments.replace_more(limit=None)
-    comments = submission.comments.list()
+    submission_comments = await submission.comments()
+    await submission_comments.replace_more(limit=None)
+    comments = await _convert_listing_generator_to_list(submission_comments)
 
     # Sort comments based on karma (lowest values first)
     sorted_comments = sorted(comments, key=lambda comment: comment.score, reverse=False)
@@ -255,10 +268,19 @@ def request_sorted_comments(submission):
     return tidied_list
 
 
-def update_automoderator_page(synced_filter, new_match, action):
+async def _get_automoderator_wikipage(subreddit_name):
+    subreddit = await reddit.subreddit(subreddit_name)
+    async for wikipage in subreddit.wiki:
+        if wikipage.name == "config/automoderator":
+            return await subreddit.wiki.get_page("config/automoderator")
+    return constants.RedditAutomodEditStatus.FAIL.value
+
+
+async def update_automoderator_page(synced_filter, new_match, action):
     if environment_variables.HAS_MOD:
         filter_name = synced_filter["filter_name"]
-        automod_wikipage = reddit.subreddit(environment_variables.PRIORITY_SUBREDDIT).wiki["config/automoderator"]
+
+        automod_wikipage = await _get_automoderator_wikipage(environment_variables.PRIORITY_SUBREDDIT)
         automod_filters = automod_wikipage.content_md.split(user_preferences.FilterSeparator)
         queried_filter_and_index = get_automoderator_filter(automod_filters, filter_name)
         if queried_filter_and_index is not None:
@@ -270,7 +292,7 @@ def update_automoderator_page(synced_filter, new_match, action):
                 )
                 automod_filters[queried_filter_and_index["index"]] = updated_filter
                 updated_automod_filters = user_preferences.FilterSeparator.join(automod_filters)
-                automod_wikipage.edit(content=updated_automod_filters, reason=synced_filter["filter_log_reason"])
+                await automod_wikipage.edit(content=updated_automod_filters, reason=synced_filter["filter_log_reason"])
                 return constants.RedditAutomodEditStatus.SUCCESS.value
             except exceptions.AutomodRemovalNotFound:
                 return constants.RedditAutomodEditStatus.FAIL.value
@@ -313,22 +335,24 @@ def update_automoderator_filter_matches(automod_filter, new_match, action):
     return new_filter
 
 
-def action_on_post(post_id, action, post_type):
-    post_instance = request_post(post_id, post_type)
+async def action_on_post(post_id, action, post_type):
+    post_instance = await request_post(post_id, post_type)
     if action == constants.RedditOperationTypes.APPROVE.value:
-        post_instance.mod.approve()
+        await post_instance.mod.approve()
     elif action == constants.RedditOperationTypes.REMOVE.value:
-        post_instance.mod.remove()
+        await post_instance.mod.remove()
     elif action == constants.RedditOperationTypes.LOCK.value:
-        post_instance.mod.lock()
+        await post_instance.mod.lock()
     elif action == constants.RedditOperationTypes.UNLOCK.value:
-        post_instance.mod.unlock()
+        await post_instance.mod.unlock()
 
 
-def scan_user_history(post):
+async def scan_user_history(post):
     username = post["author"]["username"]
-    submissions = reddit.redditor(username).new()
-    for submission in submissions:
+    redditor = await reddit.redditor(username)
+    await redditor.load()
+    submissions = redditor.new()
+    async for submission in submissions:
         post_subreddit = submission.subreddit.display_name
         for subreddit in user_preferences.BlacklistedSubreddits:
             if post_subreddit.lower() == subreddit.lower():

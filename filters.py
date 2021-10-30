@@ -7,16 +7,16 @@ import user_preferences
 
 # Apply all filters across all Reddit content
 # TODO: Consider concat instead of "matches_for_posts =" in case we want to run against multiple platforms?
-def _filter_reddit(filters, content):
-    matches_for_posts = _find_reddit_matches_for_posts(filters, content)
+async def _filter_reddit(filters, content):
+    matches_for_posts = await _find_reddit_matches_for_posts(filters, content)
     return matches_for_posts
 
 
 # Given a filter, check every new post against it
-def _find_reddit_matches_for_posts(filters, posts):
+async def _find_reddit_matches_for_posts(filters, posts):
     matches_for_posts = []
     for post in posts:
-        matches_for_post = _find_reddit_matches_for_post(filters, post)
+        matches_for_post = await _find_reddit_matches_for_post(filters, post)
         matches_for_posts.append({
             "post": post,
             "matches": matches_for_post
@@ -25,7 +25,7 @@ def _find_reddit_matches_for_posts(filters, posts):
 
 
 # Given a post and a filter, check if it matches against any filters
-def _find_reddit_matches_for_post(filters, post):
+async def _find_reddit_matches_for_post(filters, post):
     # Stores list of triggered filters and the content caught by the filters
     matches_for_post = []
 
@@ -80,7 +80,7 @@ def _find_reddit_matches_for_post(filters, post):
                     # If the media is a match for the parent but hasn't been posted, add it to the filter
                     else:
                         match_to_add = {"match": media_title, "date_added": datetime.datetime.fromtimestamp(post["created_time"]["utc"])}
-                        db_collection_operations.attempt_add_or_remove_match(
+                        await db_collection_operations.attempt_add_or_remove_match(
                             content_filter["name"], match_to_add, constants.RedditOperationTypes.ADD.value
                         )
                         # Since the filter values don't update until the next poll for posts, we artificially
@@ -164,9 +164,9 @@ def add_matched_filter(current_matches, new_match_filter, new_match_content):
 
 
 # Apply all filters across acquired content
-def apply_all_filters(filters, content, content_type):
+async def apply_all_filters(filters, content, content_type):
     matches_for_content = []
     # If content is Reddit specific, call the Reddit specific filtering process
     if content_type == constants.Platforms.REDDIT.value:
-        matches_for_content = _filter_reddit(filters, content)
+        matches_for_content = await _filter_reddit(filters, content)
     return matches_for_content

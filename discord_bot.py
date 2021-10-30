@@ -314,7 +314,7 @@ async def actions_on_post(post_and_matches, subreddit_and_channels):
     if priority_action == constants.FilterActions.REMOVE.value and subreddit_and_channels.has_mod:
         post_id = post_and_matches["post"]["_id"]
         post_type = post_and_matches["post"]["post_type"]
-        praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
+        await praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
         await send_message_to_channels(subreddit_and_channels.ping_channel_ids, constants.FilterActions.REMOVE_MESSAGE.value)
 
     # TODO: Integrate priority action into ping message so we know what action is taken
@@ -331,10 +331,10 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
 
     ignore_buffer_items = metadata_dict[constants.DatabaseMetadataInfo.IGNORE_BUFFER_NAME.value]["items"]
     subreddit_name = subreddit_and_channels.subreddit
-    new_submissions = praw_operations.get_and_store_unstored(
+    new_submissions = await praw_operations.get_and_store_unstored(
         num_posts, constants.PostTypes.REDDIT_SUBMISSION, subreddit_name, ignore_buffer_items
     )
-    new_comments = praw_operations.get_and_store_unstored(
+    new_comments = await praw_operations.get_and_store_unstored(
         num_posts, constants.PostTypes.REDDIT_COMMENT, subreddit_name, ignore_buffer_items
     )
     new_posts = praw_operations.sort_by_created_time(new_submissions + new_comments, False)
@@ -349,18 +349,18 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     for blacklisted_channel in user_preferences.BlacklistedChannelIds:
         blacklisted_channels.append(get_channel_from_id(blacklisted_channel))
     for new_post in new_posts:
-        history_object = praw_operations.scan_user_history(new_post)
+        history_object = await praw_operations.scan_user_history(new_post)
         if len(history_object) > 0:
             removal_message = "**BLACKLISTED SUBREDDIT ACTIVITY**\n" + "User: " +\
                               constants.RedditEmbedConsts.username_link.value + history_object["username"] + "\n" +\
                               "Blacklisted Subreddit: r/" + history_object["infracting_subreddit"] + "\n" +\
                               "Blacklisted Activity: " + history_object["permalink"] + "\n" +\
                               "Current Post: " + new_post["permalink"]
-            praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
+            await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
             for channel in blacklisted_channels:
                 await channel.send(content=removal_message)
 
-    posts_and_matches = filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
+    posts_and_matches = await filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
         await actions_on_post(post_and_matches, subreddit_and_channels)
 
@@ -374,10 +374,10 @@ def check_message_is_from_bot(message):
 
 
 # Returns all comments from a post with negative karma values
-def get_negative_comment_tree(submission):
+async def get_negative_comment_tree(submission):
     if submission is not None:
         pruned_comments = []
-        comments = praw_operations.request_sorted_comments(submission)
+        comments = await praw_operations.request_sorted_comments(submission)
         # Remove all comments >= 0 karma
         for comment in comments:
             if comment.score < 0:
@@ -446,14 +446,14 @@ async def handle_reaction(reaction, user):
         message_main_embed = message.embeds[0]
 
         if react_emoji == constants.RedditReactEmojis.GENERATE_USER_REPORT.value:
-            embed = db_collection_operations.generate_user_report(message_main_embed.author.name)
+            embed = await db_collection_operations.generate_user_report(message_main_embed.author.name)
             generated_message = await message.channel.send(embed=embed)
             await generated_message.add_reaction(constants.RedditReactEmojis.CLEAR_GENERATED_EMBED.value)
         # If conditional satisfied, is submission post type (negative comment tree react only available for submissions)
         elif react_emoji == constants.RedditReactEmojis.GENERATE_NEGATIVE_COMMENT_TREE.value:
             post_id = get_embed_post_id(message_main_embed)
-            submission = praw_operations.request_post(post_id, constants.PostTypes.REDDIT_SUBMISSION.value)
-            comments = get_negative_comment_tree(submission)
+            submission = await praw_operations.request_post(post_id, constants.PostTypes.REDDIT_SUBMISSION.value)
+            comments = await get_negative_comment_tree(submission)
             embed_and_info = wrangler.construct_negative_comment_tree_embed(submission, comments)
             embed = embed_and_info["embed"]
             additional_info = embed_and_info["additional_info"]
@@ -498,7 +498,7 @@ async def handle_reaction(reaction, user):
         # Adds post to a user's moderator comments
         elif react_emoji == constants.RedditReactEmojis.ADD_POST_TO_USER_MOD_COMMENTS.value:
             comment = "[{}]({})".format(message_main_embed.description, message_main_embed.url)
-            mod_comment = db_collection_operations.add_user_comment(message, message_main_embed.author.name, user, comment)
+            mod_comment = await db_collection_operations.add_user_comment(message, message_main_embed.author.name, user, comment)
             if mod_comment:
                 await message.channel.send("Added post to user mod comments.")
             else:
@@ -508,26 +508,26 @@ async def handle_reaction(reaction, user):
             # Lock post
             if react_emoji == constants.RedditReactEmojis.POST_LOCK.value:
                 post_id = get_embed_post_id(message_main_embed)
-                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.LOCK.value, post_type)
+                await praw_operations.action_on_post(post_id, constants.RedditOperationTypes.LOCK.value, post_type)
                 await message.remove_reaction(react_emoji, client.user)
                 await message.add_reaction(constants.RedditReactEmojis.POST_UNLOCK.value)
                 await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
             # Unlock post
             elif react_emoji == constants.RedditReactEmojis.POST_UNLOCK.value:
                 post_id = get_embed_post_id(message_main_embed)
-                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.UNLOCK.value, post_type)
+                await praw_operations.action_on_post(post_id, constants.RedditOperationTypes.UNLOCK.value, post_type)
                 await message.remove_reaction(react_emoji, client.user)
                 await message.add_reaction(constants.RedditReactEmojis.POST_LOCK.value)
                 await edit_message_embed_with_emoji(message, message_main_embed, constants.RedditReactEmojis.POST_LOCK.value, constants.RedditOperationTypes.REMOVE.value)
             # Approve post
             elif react_emoji == constants.RedditReactEmojis.POST_REMOVE.value:
                 post_id = get_embed_post_id(message_main_embed)
-                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
+                await praw_operations.action_on_post(post_id, constants.RedditOperationTypes.REMOVE.value, post_type)
                 await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
             # Remove post
             elif react_emoji == constants.RedditReactEmojis.POST_APPROVE.value:
                 post_id = get_embed_post_id(message_main_embed)
-                praw_operations.action_on_post(post_id, constants.RedditOperationTypes.APPROVE.value, post_type)
+                await praw_operations.action_on_post(post_id, constants.RedditOperationTypes.APPROVE.value, post_type)
                 await edit_message_embed_with_emoji(message, message_main_embed, react_emoji, constants.RedditOperationTypes.ADD.value)
 
         # Reset reaction to allow for repeated actions
@@ -572,13 +572,13 @@ async def add_match(context, filter_name, new_match):
             return
 
     # Add match to database
-    add_result = db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditOperationTypes.ADD.value)
+    add_result = await db_collection_operations.attempt_add_or_remove_match(filter_name, new_match, constants.RedditOperationTypes.ADD.value)
     if add_result:
         # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
         filter_sync_result = should_filter_be_synced(filter_name)
         automod_result = ""
         if filter_sync_result is not None:
-            automod_result = praw_operations.update_automoderator_page(
+            automod_result = await praw_operations.update_automoderator_page(
                 filter_sync_result,
                 new_match,
                 constants.RedditOperationTypes.ADD.value
@@ -616,12 +616,12 @@ async def remove_match(context, filter_name, match_to_remove):
     if not filter_name_valid:
         return
 
-    remove_result = db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditOperationTypes.REMOVE.value)
+    remove_result = await db_collection_operations.attempt_add_or_remove_match(filter_name, match_to_remove, constants.RedditOperationTypes.REMOVE.value)
     if remove_result:
         # If the filter should also be synced with the automoderator wiki, do it here in addition to updating database
         filter_sync_result = should_filter_be_synced(filter_name)
         if filter_sync_result is not None:
-            automod_result = praw_operations.update_automoderator_page(
+            automod_result = await praw_operations.update_automoderator_page(
                 filter_sync_result,
                 match_to_remove,
                 constants.RedditOperationTypes.REMOVE.value
@@ -677,12 +677,12 @@ async def get_post(context, post_id_or_url):
         # Otherwise, the post or comment has not yet been queried for
         else:
             try:
-                post_and_type = praw_operations.attempt_to_request_post(post_id)
+                post_and_type = await praw_operations.attempt_to_request_post(post_id)
                 praw_post = post_and_type["post"]
                 if praw_post is not None:
                     subreddit = praw_post.subreddit.display_name
                     post_type = post_and_type["type"]
-                    entry_object = praw_operations.construct_entry_object(subreddit, praw_post, post_type)
+                    entry_object = await praw_operations.construct_entry_object(subreddit, praw_post, post_type)
                     valid_entry_object_as_array = praw_operations.remove_invalid_posts([entry_object])
                     praw_operations.store_entry_objects(valid_entry_object_as_array, post_type)
                     db_collection_operations.add_post_id_to_ignore_buffer(post_id)
@@ -706,19 +706,19 @@ async def get_filters(context):
 
 @client.command()
 async def user_report(context, username):
-    embed = db_collection_operations.generate_user_report(username)
+    embed = await db_collection_operations.generate_user_report(username)
     await context.send(embed=embed)
 
 
 @client.command()
 async def user_comments(context, username):
-    embed = db_collection_operations.generate_user_comments(username)
+    embed = await db_collection_operations.generate_user_comments(username)
     await context.send(embed=embed)
 
 
 @client.command()
 async def add_user_comment(context, username, *, comment):
-    comment_added = db_collection_operations.add_user_comment(context.message, username, context.message.author, comment)
+    comment_added = await db_collection_operations.add_user_comment(context.message, username, context.message.author, comment)
     if comment_added:
         await context.send("Moderator comment added to {}.".format(username))
     else:
@@ -727,7 +727,7 @@ async def add_user_comment(context, username, *, comment):
 
 @client.command()
 async def remove_user_comment(context, username, comment_id):
-    comment_removed = db_collection_operations.remove_user_comment(username, comment_id)
+    comment_removed = await db_collection_operations.remove_user_comment(username, comment_id)
     if comment_removed:
         await context.send("Moderator comment removed from {}.".format(username))
     else:
@@ -771,7 +771,8 @@ async def ping(context):
 async def on_reaction_add(reaction, user):
     await handle_reaction(reaction, user)
     if environment_variables.DEV_MODE:
-        print("React interacted with: {}".format(reaction))
+        if check_user_is_not_bot(user):
+            print("React interacted with: {}".format(reaction))
 
 
 @client.event
