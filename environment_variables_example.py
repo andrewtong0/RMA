@@ -21,3 +21,4 @@ PRIORITY_SUBREDDIT = ""
 # Boolean to notify whether bot has moderator perms
 HAS_MOD = True
 DEV_MODE = False
+ENABLE_LOGGING = False
