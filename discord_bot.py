@@ -356,7 +356,8 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
                               "Blacklisted Subreddit: r/" + history_object["infracting_subreddit"] + "\n" +\
                               "Blacklisted Activity: " + history_object["permalink"] + "\n" +\
                               "Current Post: " + new_post["permalink"]
-            await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
+            if environment_variables.REMOVE_BLACKLISTED_SUBREDDIT_PARTICIPANT_POSTS:
+                await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
             for channel in blacklisted_channels:
                 await channel.send(content=removal_message)
 
