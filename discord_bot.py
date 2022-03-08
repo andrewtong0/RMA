@@ -22,6 +22,10 @@ import exceptions
 # ================
 
 
+# Used for version command for verification of successful migration
+version = "2.3.0"
+
+
 # Initializes filters on startup by grabbing filters
 def set_filters():
     retrieved_filters = db_collection_operations.get_collection("filters")
@@ -346,11 +350,13 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
 
     # Scan user history for blacklisted subreddits
     blacklisted_channels = []
+    # TODO: Add multi-subreddit support (send to associated channel for subreddit)
     for blacklisted_channel in user_preferences.BlacklistedChannelIds:
         blacklisted_channels.append(get_channel_from_id(blacklisted_channel))
     for new_post in new_posts:
         history_object = await praw_operations.scan_user_history(new_post)
         if len(history_object) > 0:
+            # TODO: Convert to a nicer embed
             removal_message = "**BLACKLISTED SUBREDDIT ACTIVITY**\n" + "User: " +\
                               constants.RedditEmbedConsts.username_link.value + history_object["username"] + "\n" +\
                               "Blacklisted Subreddit: r/" + history_object["infracting_subreddit"] + "\n" +\
@@ -360,6 +366,29 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
                 await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
             for channel in blacklisted_channels:
                 await channel.send(content=removal_message)
+
+    # Check if post is a repost
+    repost_channels = []
+    # TODO: Add multi-subreddit support (send to associated channel for subreddit)
+    for repost_channel in user_preferences.RepostChannelIds:
+        repost_channels.append(get_channel_from_id(repost_channel))
+    if environment_variables.REPOST_SETTINGS["SCAN_FOR_REPOSTS"]:
+        for new_post in new_posts:
+            reposts = db_collection_operations.get_reposts_of_post(new_post["_id"])
+            if len(reposts) == 0:
+                continue
+            # TODO: Convert to a nicer embed
+            reposts_string = ""
+            for repost in reposts:
+                reposts_string += repost["permalink"] + "\n"
+            repost_message = "**POTENTIAL REPOST FOUND**\n" + "User: " +\
+                                  constants.RedditEmbedConsts.username_link.value + new_post["author"]["username"] + "\n" +\
+                                  "Suspected Post: " + new_post["permalink"] + "\n" +\
+                                  "Original Post(s): \n" + reposts_string
+            if environment_variables.REPOST_SETTINGS["DELETE_REPOSTS"]:
+                await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
+            for channel in repost_channels:
+                await channel.send(content=repost_message)
 
     posts_and_matches = await filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
@@ -766,6 +795,11 @@ async def unsubscribe(context, role):
 @client.command()
 async def ping(context):
     await context.send("Pong!")
+
+
+@client.command()
+async def version(context):
+    await context.send("v" + version)
 
 
 @client.event

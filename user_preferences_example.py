@@ -45,6 +45,8 @@ class BotConsts(Enum):
 BlacklistedSubreddits = []
 BlacklistedChannelIds = []
 
+RepostChannelIds = []
+
 
 # ===================
 # POWER USER FEATURES

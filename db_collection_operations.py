@@ -238,3 +238,20 @@ def clear_ignore_buffer():
 def update_media_source_history_matches(filter_name, updated_matches):
     filter_name_object = {"name": filter_name}
     db.filters.find_one_and_update(filter_name_object, {"$set": {"matches": updated_matches}})
+
+
+# Checks if post is repost
+def get_reposts_of_post(post_id):
+    post = get_post(post_id)
+    post_title = post["title"]
+    post_id = post["_id"]
+    if post is not None:
+        # Repost Parameters:
+        # - Submissions with same name
+        # - Do not fetch self
+        reposts = db.submissions.find({
+            "title": post_title,
+            "_id": {"$ne": post_id}
+        })
+        return list(reposts)
+    return []
