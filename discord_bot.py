@@ -23,7 +23,7 @@ import exceptions
 
 
 # Used for version command for verification of successful migration
-version = "2.3.0"
+rma_version = "2.3.1"
 
 
 # Initializes filters on startup by grabbing filters
@@ -350,7 +350,7 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
 
     # Scan user history for blacklisted subreddits
     blacklisted_channels = []
-    # TODO: Add multi-subreddit support (send to associated channel for subreddit)
+    # TODO: Add multi-subreddit support (send to associated channel for subreddit), consider updating classes.py
     for blacklisted_channel in user_preferences.BlacklistedChannelIds:
         blacklisted_channels.append(get_channel_from_id(blacklisted_channel))
     for new_post in new_posts:
@@ -369,11 +369,13 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
 
     # Check if post is a repost
     repost_channels = []
-    # TODO: Add multi-subreddit support (send to associated channel for subreddit)
+    # TODO: Add multi-subreddit support (send to associated channel for subreddit), consider updating classes.py
     for repost_channel in user_preferences.RepostChannelIds:
         repost_channels.append(get_channel_from_id(repost_channel))
     if environment_variables.REPOST_SETTINGS["SCAN_FOR_REPOSTS"]:
         for new_post in new_posts:
+            if new_post["post_type"] != constants.PostTypes.REDDIT_SUBMISSION.value:
+                continue
             reposts = db_collection_operations.get_reposts_of_post(new_post["_id"])
             if len(reposts) == 0:
                 continue
@@ -799,7 +801,7 @@ async def ping(context):
 
 @client.command()
 async def version(context):
-    await context.send("v" + version)
+    await context.send("v" + rma_version)
 
 
 @client.event
