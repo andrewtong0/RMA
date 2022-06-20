@@ -21,7 +21,7 @@ from classes import SubredditAndChannels
 #   boolean flag whether bot has moderator access to subreddit,
 # )
 
-# e.g. SubredditAndChannels("food", [12345], [12345, 78901], [], [], [78901], [12345], 0x000000, False)
+# e.g. ProdSubredditsAndChannels = [SubredditAndChannels("food", [12345], [12345, 78901], [], [], [78901], [12345], 0x000000, False)]
 ProdSubredditsAndChannels = []
 
 
