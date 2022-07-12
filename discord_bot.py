@@ -23,7 +23,7 @@ import exceptions
 
 
 # Used for version command for verification of successful migration
-rma_version = "2.3.1"
+rma_version = "2.3.2"
 
 
 # Initializes filters on startup by grabbing filters

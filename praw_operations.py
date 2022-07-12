@@ -47,8 +47,13 @@ async def construct_entry_object(subreddit_name, post, post_type):
     utc = post.created_utc
     timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
     content = ""
-    if post.author:
+    if post.author is not None:
         author = post.author
+        if not hasattr(author, 'id'):
+            author.id = 'NO_ID'
+            author.icon_img = ''
+            author.comment_karma = 0
+            author.link_karma = 0
         await author.load()
         if post_type == constants.PostTypes.REDDIT_SUBMISSION:
             if post.selftext:
