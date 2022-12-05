@@ -38,7 +38,7 @@ Discord Bot Basic Setup
 
 
 Bot Setup Tutorial
-1. Verify you have Python 3.x.x installed, the required MongoDB information, and the Discord Bot credentials (see above).
+1. Verify you have Python 3.7.x installed, the required MongoDB information, and the Discord Bot credentials (see above). Later versions of Python may not work.
 2. Clone the repository
 3. Navigate to the repository and install the required dependencies
 `pip install -r requirements.txt`

@@ -244,14 +244,14 @@ async def request_post(post_id, post_type):
 # TODO: Find a better way to check if a post/comment ID is invalid
 # When it is unknown whether the provided ID is a post or comment, return whatever is found
 async def attempt_to_request_post(post_id):
-    submission_attempt = await reddit.submission(id=post_id)
-    comment_attempt = await reddit.comment(id=post_id)
     try:
+        submission_attempt = await reddit.submission(id=post_id)
         # Dummy variable to test if accessing comments throws an exception, which it does if the post ID is invalid
         comments = submission_attempt.comments
         return {"post": submission_attempt, "type": constants.PostTypes.REDDIT_SUBMISSION}
     except:
         try:
+            comment_attempt = await reddit.comment(id=post_id)
             # Dummy variable to test if accessing comments throws an exception, which it does if the post ID is invalid
             submission = comment_attempt.submission
             return {"post": comment_attempt, "type": constants.PostTypes.REDDIT_COMMENT}

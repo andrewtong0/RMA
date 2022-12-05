@@ -71,7 +71,11 @@ else:
 
 
 print("DISCORD.PY VERSION: {}".format(discord.__version__))
-client = commands.Bot(command_prefix=user_preferences.Settings.BOT_PREFIX.value)
+
+client = commands.Bot(
+    intents=discord.Intents.all(),
+    command_prefix=user_preferences.Settings.BOT_PREFIX.value
+)
 db_filters = set_filters()
 metadata_dict = set_metadata()
 
