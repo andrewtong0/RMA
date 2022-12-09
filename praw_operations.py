@@ -252,8 +252,6 @@ async def attempt_to_request_post(post_id):
     except:
         try:
             comment_attempt = await reddit.comment(id=post_id)
-            # Dummy variable to test if accessing comments throws an exception, which it does if the post ID is invalid
-            submission = comment_attempt.submission
             return {"post": comment_attempt, "type": constants.PostTypes.REDDIT_COMMENT}
         except:
             raise exceptions.NoPostOrCommentFound
