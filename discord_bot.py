@@ -394,7 +394,8 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
             if environment_variables.REPOST_SETTINGS["DELETE_REPOSTS"]:
                 await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
             for channel in repost_channels:
-                await channel.send(content=repost_message)
+                if channel is not None:
+                    await channel.send(content=repost_message)
 
     posts_and_matches = await filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:
