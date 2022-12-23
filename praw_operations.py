@@ -1,5 +1,6 @@
 import re
 import asyncpraw as praw
+import asyncprawcore.exceptions
 from pymongo import MongoClient
 from datetime import datetime
 import constants
@@ -42,6 +43,11 @@ async def _convert_listing_generator_to_list(generator):
     return output_list
 
 
+def create_invalid_author(author):
+    author.name = "[DELETED]" + author.name
+    return author
+
+
 # Constructs an entry object from a post
 async def construct_entry_object(subreddit_name, post, post_type):
     utc = post.created_utc
@@ -54,7 +60,10 @@ async def construct_entry_object(subreddit_name, post, post_type):
             author.icon_img = ''
             author.comment_karma = 0
             author.link_karma = 0
-        await author.load()
+        try:
+            await author.load()
+        except asyncprawcore.exceptions.NotFound:
+            author = create_invalid_author(author)
         if post_type == constants.PostTypes.REDDIT_SUBMISSION:
             if post.selftext:
                 content = post.selftext
@@ -367,3 +376,7 @@ async def scan_user_history(post):
                 }
                 return post_object
     return {}
+
+# async def get_mod_logs(subreddit, moderator_name):
+#     # Verify moderator status
+#     redditor = reddit.redditor(moderator_name)
