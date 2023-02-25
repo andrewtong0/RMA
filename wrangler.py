@@ -11,6 +11,10 @@ def generate_reddit_user_link(username):
     return constants.RedditEmbedConsts.username_link.value + username
 
 
+def generated_reddit_permalink(permalink):
+    return constants.RedditEmbedConsts.permalink_domain.value + permalink
+
+
 def is_post_submission(post):
     return post["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value
 
@@ -285,6 +289,38 @@ def construct_user_moderator_comments_embed(user_data, username):
     return embed
 
 
+# Embed message for reported content
+def construct_report_embed(subreddit, reported_content):
+    embed = discord.Embed(
+        title=("Report Received on r/{}".format(subreddit)),
+        colour=discord.Colour(constants.RedditEmbedConsts.report_colour.value),
+        url=reported_content["permalink"]
+    )
+
+    embed.add_field(
+        name="Reported User: {} / Creation Date: {} / ({})".format(
+            reported_content["username"],
+            reported_content["timestamp"],
+            "Submission" if reported_content["post_type"] == constants.PostTypes.REDDIT_SUBMISSION.value else "Comment",
+        ),
+        value=reported_content["content"],
+        inline=False
+    )
+
+    for index, (report_message, quantity) in enumerate(reported_content["reports"].items()):
+        embed.add_field(
+            name="Report {} / Qty: {}".format(index + 1, quantity),
+            value=report_message,
+            inline=False
+        )
+
+    embed.set_author(name=constants.BotAuthorDetails.NAME.value,
+                     icon_url=constants.BotAuthorDetails.ICON_URL.value)
+    embed = truncate_embed(embed)["embed"]
+
+    return embed
+
+
 def get_user_karma(user_data):
     return user_data["comment_karma"] + user_data["link_karma"]
 
@@ -332,14 +368,14 @@ def construct_negative_comment_tree_embed(submission, comments):
     embed = discord.Embed(
         title=submission.title,
         colour=discord.Colour(constants.RedditEmbedConsts.post_colour.value),
-        url=constants.RedditEmbedConsts.permalink_domain.value + submission.permalink
+        url=generated_reddit_permalink(submission.permalink)
     )
     embed.set_author(name="Negative Comment Tree")
 
     for comment in comments:
         author = comment.author.name
         author_link = constants.RedditEmbedConsts.username_link.value + author
-        comment_link = constants.RedditEmbedConsts.permalink_domain.value + comment.permalink
+        comment_link = generated_reddit_permalink(comment.permalink)
         links = "[Profile]({}) | [Comment Link]({})".format(author_link, comment_link)
         body = comment.body + "\n" + links
 

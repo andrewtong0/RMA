@@ -7,6 +7,7 @@ import constants
 import environment_variables
 import user_preferences
 import exceptions
+import wrangler
 
 # This file provides two public functions, get_and_store_posts and get_and_store_unstored to query for new posts with
 # PRAW. All PRAW (Reddit) related operations are isolated to this file.
@@ -27,6 +28,13 @@ client = MongoClient(environment_variables.DATABASE_URI)
 db = client.reddit
 
 
+# It is safe to check if name starts with t3, it is a submission, and t1 are comments
+def is_post_submission(post):
+    raw_name = post.name
+    tag = raw_name[:2]
+    return tag == "t3"
+
+
 # Gets the raw PRAW generator, and returns a list of submissions or comments
 async def _get_posts(num_posts, posts_type, subreddit_name):
     subreddit = await reddit.subreddit(subreddit_name)
@@ -36,6 +44,11 @@ async def _get_posts(num_posts, posts_type, subreddit_name):
         return await _convert_listing_generator_to_list(subreddit.comments(limit=num_posts))
 
 
+def create_invalid_author(author):
+    author.name = "[DELETED]" + author.name
+    return author
+
+
 async def _convert_listing_generator_to_list(generator):
     output_list = []
     async for item in generator:
@@ -43,15 +56,14 @@ async def _convert_listing_generator_to_list(generator):
     return output_list
 
 
-def create_invalid_author(author):
-    author.name = "[DELETED]" + author.name
-    return author
+def convert_created_utc_to_ts(utc):
+    return datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
 
 
 # Constructs an entry object from a post
 async def construct_entry_object(subreddit_name, post, post_type):
     utc = post.created_utc
-    timestamp = datetime.utcfromtimestamp(utc).strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = convert_created_utc_to_ts(utc)
     content = ""
     if post.author is not None:
         author = post.author
@@ -88,7 +100,7 @@ async def construct_entry_object(subreddit_name, post, post_type):
                     "utc": utc
                 },
                 "content": content,
-                "permalink": constants.RedditEmbedConsts.permalink_domain.value + post.permalink,
+                "permalink": wrangler.generated_reddit_permalink(post.permalink),
                 # TODO: Check if content will always be more important than this - if you have image post w/ text, will content = the text and thumbnail = the image?
                 "thumbnail": post.thumbnail,
                 "extra_info": {
@@ -128,7 +140,7 @@ async def construct_entry_object(subreddit_name, post, post_type):
                     "utc": utc
                 },
                 "content": post.body,
-                "permalink": constants.RedditEmbedConsts.permalink_domain.value + post.permalink,
+                "permalink": wrangler.generated_reddit_permalink(post.permalink),
                 "submission_id": submission_id,
                 "comment_parent_id": comment_parent_id
             }
@@ -372,11 +384,93 @@ async def scan_user_history(post):
                     "_id": submission.id,
                     "infracting_subreddit": subreddit,
                     "username": submission.author.name,
-                    "permalink": constants.RedditEmbedConsts.permalink_domain.value + submission.permalink
+                    "permalink": wrangler.generated_reddit_permalink(submission.permalink)
                 }
                 return post_object
     return {}
 
-# async def get_mod_logs(subreddit, moderator_name):
-#     # Verify moderator status
-#     redditor = reddit.redditor(moderator_name)
+
+async def iterate_through_reports(gen):
+    output = []
+    async for item in gen:
+        output.append(item)
+    return output
+
+
+# Fetch reported posts by post type
+async def fetch_reported_posts(subreddit_moderation, post_type):
+    reported_content = []
+    post_type_param = "submissions" if post_type == constants.PostTypes.REDDIT_SUBMISSION.value else "comments"
+    reports_generator = subreddit_moderation.reports(only=post_type_param)
+    async for report in reports_generator:
+        reported_content.append(report)
+    return reported_content
+
+
+async def fetch_latest_reports(subreddit_name):
+    subreddit = await reddit.subreddit(subreddit_name)
+    subreddit_moderation = subreddit.mod
+    comment_reports = await fetch_reported_posts(
+        subreddit_moderation, constants.PostTypes.REDDIT_COMMENT.value)
+    submission_reports = await fetch_reported_posts(
+        subreddit_moderation, constants.PostTypes.REDDIT_SUBMISSION.value)
+
+    cleaned_reported_comments = await _clean_reported_content(
+        comment_reports, constants.PostTypes.REDDIT_COMMENT.value)
+    cleaned_reported_submissions = await _clean_reported_content(
+        submission_reports, constants.PostTypes.REDDIT_SUBMISSION.value)
+
+    return {
+        "comments": cleaned_reported_comments,
+        "submissions": cleaned_reported_submissions,
+    }
+
+
+async def _clean_reported_content(reported_content, post_type):
+    cleaned_posts = []
+    for content in reported_content:
+        try:
+            if post_type == constants.PostTypes.REDDIT_SUBMISSION.value:
+                cleaned_posts.append(_clean_reported_submission(content))
+            elif post_type == constants.PostTypes.REDDIT_COMMENT.value:
+                cleaned_posts.append(_clean_reported_comment(content))
+            else:
+                print("No matching post type for reported content")
+        except:
+            print("Error processing reported content")
+    return cleaned_posts
+
+
+def _clean_reported_submission(reported_submission):
+    return {
+        "post_type": constants.PostTypes.REDDIT_SUBMISSION.value,
+        "author": reported_submission.author,
+        "created_utc": reported_submission.created_utc,
+        "post_id": reported_submission.id,
+        "name": reported_submission.name,
+        "permalink": wrangler.generated_reddit_permalink(reported_submission.permalink),
+        "score": reported_submission.score,
+        "selftext": reported_submission.selftext,
+        "subreddit": reported_submission.subreddit.display_name,
+        "title": reported_submission.title,
+        "mod_reports": reported_submission.mod_reports,
+        "user_reports": reported_submission.user_reports,
+    }
+
+
+def _clean_reported_comment(reported_comment):
+    return {
+        "post_type": constants.PostTypes.REDDIT_COMMENT.value,
+        "author": reported_comment.author,
+        "body": reported_comment.body,
+        "created_utc": reported_comment.created_utc,
+        "post_id": reported_comment.id,
+        "is_submitter": reported_comment.is_submitter,
+        "link_id": reported_comment.link_id,
+        "parent_id": reported_comment.parent_id,
+        "permalink": wrangler.generated_reddit_permalink(reported_comment.permalink),
+        "score": reported_comment.score,
+        "subreddit": reported_comment.subreddit.display_name,
+        "mod_reports": reported_comment.mod_reports,
+        "user_reports": reported_comment.user_reports,
+    }

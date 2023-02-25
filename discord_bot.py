@@ -89,14 +89,37 @@ metadata_dict = set_metadata()
 async def on_ready():
     print('Discord Logged in as', client.user)
     await client.change_presence(activity=discord.Game(name='My prefix is {}'.format(user_preferences.Settings.BOT_PREFIX.value)))
-    set_exceptions()
     await send_health_message(constants.BotHealthMessages.POLLING_START.value)
-    await poll_new_posts.start()
+    await run_loop_tasks.start()
 
 
-def set_exceptions():
-    poll_new_posts.add_exception_type(StopIteration)
-    poll_new_posts.add_exception_type(prawcore.exceptions.NotFound)
+@tasks.loop(minutes=user_preferences.BotConsts.POLL_TIMER.value)
+async def run_loop_tasks():
+    # Poll for new posts
+    # try:
+    #     await poll_new_posts()
+    # except (StopIteration, prawcore.exceptions.NotFound) as error:
+    #     print("Polling task ran into an error: " + error)
+
+    # Poll for new reports
+    await poll_new_reports()
+
+
+async def send_health_message(message):
+    for subreddit_and_channels in SelectedSubredditsAndChannels:
+        status_channel_ids = subreddit_and_channels.status_channel_ids
+        for status_channel_id in status_channel_ids:
+            current_channel = get_channel_from_id(status_channel_id)
+            await current_channel.send(content=message)
+
+
+# Handle loop failures by restarting polling
+@run_loop_tasks.after_loop
+async def on_poll_error():
+    if run_loop_tasks.is_being_cancelled() or run_loop_tasks.failed():
+        await send_health_message(constants.BotHealthMessages.TASK_FAILED_AND_RESTART.value)
+        run_loop_tasks.cancel()
+        run_loop_tasks.restart()
 
 
 def get_channel_from_id(channel_id):
@@ -121,6 +144,11 @@ def get_channels_of_type(channel_type, subreddit_and_channels):
     elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_SECONDARY_REVIEW.value:
         for channel_id in subreddit_and_channels.secondary_review_channel_ids:
             channels.append(get_channel_from_id(channel_id))
+    elif channel_type == constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_REPORTS.value:
+        for channel_id in subreddit_and_channels.report_channel_ids:
+            channels.append(get_channel_from_id(channel_id))
+    else:
+        print("No matching fetch for channel type")
     return channels
 
 
@@ -184,29 +212,36 @@ def is_match_valid_regex(regex):
 # ===================
 
 # Grabs new posts, stores them in the database
-@tasks.loop(minutes=user_preferences.BotConsts.POLL_TIMER.value)
 async def poll_new_posts():
     await send_health_message(constants.BotHealthMessages.POLLING_UP.value)
-    print(poll_new_posts.next_iteration)
     for subreddit_and_channels in SelectedSubredditsAndChannels:
         await get_new_reddit_posts(10, subreddit_and_channels)
 
 
-# Handle loop failures by restarting polling
-@poll_new_posts.after_loop
-async def on_poll_error():
-    if poll_new_posts.is_being_cancelled() or poll_new_posts.failed():
-        await send_health_message(constants.BotHealthMessages.TASK_FAILED_AND_RESTART.value)
-        poll_new_posts.cancel()
-        poll_new_posts.restart()
-
-
-async def send_health_message(message):
+# Fetches new reports, stores in database, pings on new reports
+async def poll_new_reports():
     for subreddit_and_channels in SelectedSubredditsAndChannels:
-        status_channel_ids = subreddit_and_channels.status_channel_ids
-        for status_channel_id in status_channel_ids:
-            current_channel = get_channel_from_id(status_channel_id)
-            await current_channel.send(content=message)
+        if subreddit_and_channels.has_mod:
+            subreddit_name = subreddit_and_channels.subreddit
+            raw_reports = await praw_operations.fetch_latest_reports(subreddit_name)
+            # New reports is cleaned again using db_collection_operations._construct_report() to create
+            #   a unified format for both submissions and comments to be used for the output embed messages
+            new_reports = await db_collection_operations.db_operations_on_reported_content(subreddit_name, raw_reports)
+            if len(new_reports) != 0:
+                print("New Reports Found...")
+            for new_report in new_reports:
+                await send_report_message(subreddit_and_channels, new_report)
+
+
+async def send_report_message(subreddit_and_channels, report):
+    report_channels = get_channels_of_type(
+        constants.RedditDiscordChannelTypes.RD_CHANNELTYPE_REPORTS.value, subreddit_and_channels)
+    report_message_embed = wrangler.construct_report_embed(subreddit_and_channels.subreddit, report)
+    for channel in report_channels:
+        try:
+            await channel.send(embed=report_message_embed)
+        except Exception as e:
+            print(e)
 
 
 # Sends message to Discord channel depending on the platform type and notification type

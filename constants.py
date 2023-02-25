@@ -131,6 +131,7 @@ class RedditEmbedConsts(Enum):
     error_colour = 0xff0000
     approve_colour = 0x40e300
     reject_colour = 0xfc0000
+    report_colour = 0xfffb00
     permalink_domain = "https://reddit.com"
     username_link = "https://reddit.com/u/"
     removed_thumbnail = "https://cdn4.iconfinder.com/data/icons/social-messaging-ui-coloricon-1/21/52-512.png"
@@ -169,6 +170,7 @@ class RedditDiscordChannelTypes(Enum):
     RD_CHANNELTYPE_COMMENTS = "rd_comments"
     RD_CHANNELTYPE_PINGS = "rd_pings"
     RD_CHANNELTYPE_SECONDARY_REVIEW = "rd_secondary_review"
+    RD_CHANNELTYPE_REPORTS = "rd_reports"
 
 
 class BotHealthMessages(Enum):
@@ -179,6 +181,9 @@ class BotHealthMessages(Enum):
 
 class DatabaseMetadataInfo(Enum):
     IGNORE_BUFFER_NAME = "Ignore Buffer"  # Name field for the ignore buffer in the database metadata
+    REPORT_TIMESTAMPS_NAME = "Latest Report Timestamps"  # Name field for report timestamps metadata
+    REPORT_TIMESTAMPS_DESCRIPTION = "Stores timestamps of latest reports received per subreddit to determine whether " \
+                                    "report stream contains new reports "
 
 
 ActionPriorityDictionary = {
