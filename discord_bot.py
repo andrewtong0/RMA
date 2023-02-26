@@ -96,10 +96,10 @@ async def on_ready():
 @tasks.loop(minutes=user_preferences.BotConsts.POLL_TIMER.value)
 async def run_loop_tasks():
     # Poll for new posts
-    # try:
-    #     await poll_new_posts()
-    # except (StopIteration, prawcore.exceptions.NotFound) as error:
-    #     print("Polling task ran into an error: " + error)
+    try:
+        await poll_new_posts()
+    except (StopIteration, prawcore.exceptions.NotFound) as error:
+        print("Polling task ran into an error: " + error)
 
     # Poll for new reports
     await poll_new_reports()
