@@ -107,7 +107,7 @@ def _add_new_user_to_db(username, userdata):
         "username": username,
         "mod_comments": [],
         "tags": [],
-        "reports": [],
+        "reports": {},
     })
 
 
@@ -116,12 +116,13 @@ def _add_new_user_to_db(username, userdata):
 async def _add_or_update_user_db(username):
     userdata = await praw_operations.get_redditor(username)
     await userdata.load()
+
+    if hasattr(userdata, 'is_suspended') and userdata.is_suspended:
+        return constants.RedditUserUpsertStatus.MISSING.value
+
     id_object = {"_id": userdata.id}
     if db.users.find_one(id_object) is None:
         _add_new_user_to_db(username, userdata)
-
-    if hasattr(userdata, 'is_suspended'):
-        return constants.RedditUserUpsertStatus.MISSING.value
 
     db.users.update(id_object, {"$set": {
         "account_creation_utc": userdata.created_utc,
@@ -318,10 +319,12 @@ def _update_latest_report_timestamp(subreddit_name, curr_latest_timestamp):
 
 async def _log_reported_content(content):
     # Ensure user exists in database before attempting to add report
-    await _add_or_update_user_db(content["author"].name)
+    #   we do not add suspended users due to missing required userdata
+    user_status = await _add_or_update_user_db(content["author"].name)
 
     # Log the report to the user and to the post, the report date, and permalink to reported content
-    await _add_and_update_user_reports(content)
+    if user_status != constants.RedditUserUpsertStatus.MISSING.value:
+        await _add_and_update_user_reports(content)
 
 
 # Add user report to user
