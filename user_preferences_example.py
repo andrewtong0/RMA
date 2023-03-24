@@ -64,3 +64,6 @@ DevSubredditsAndChannels = []
 SyncedFilters = []
 # Comment string used to separate filters in the automoderator configuration
 FilterSeparator = "---"
+
+SENTIMENT_ANALYSIS_ENABLED = False
+SENTIMENT_ANALYSIS_NEGATIVE_THRESHOLD = 0.50

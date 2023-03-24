@@ -15,6 +15,11 @@ REDDIT_USER_PASSWORD = ""
 LIVE_DISCORD_BOT_TOKEN = ""
 DEV_DISCORD_BOT_TOKEN = ""
 
+# Specifies where to locally save sentiment analysis model
+SENTIMENT_ANALYSIS_MODEL_DIR = ""
+# The name of the model to load from Transformers
+SENTIMENT_ANALYSIS_MODEL_NAME = ""
+
 # If you are not using synced filters in the power user features of user_preferences, leave this string empty
 PRIORITY_SUBREDDIT = ""
 

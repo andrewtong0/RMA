@@ -1,4 +1,6 @@
 import re
+
+import advanced_filters
 import constants
 import datetime
 import db_collection_operations
@@ -94,6 +96,12 @@ async def _find_reddit_matches_for_post(filters, post):
                         matches_for_post = add_matched_filter(matches_for_post, content_filter, match_string)
             # TODO: Implement this once subreddit is stored or we figure out how to do subreddit blacklist
             # elif post_filter.type == constants.RedditFilterTypes.SUBREDDITS.value and post.subreddit in post_filter.matches:
+            else:
+                # ADVANCED FILTERS
+                # Result here should generally be a string that can be inserted into the filter catch "reason" message on Discord embed
+                result = advanced_filters.apply_advanced_filter(filter_type, post)
+                if result is not None:
+                    matches_for_post = add_matched_filter(matches_for_post, content_filter, result)
     return matches_for_post
 
 

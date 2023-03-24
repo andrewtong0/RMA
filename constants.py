@@ -30,6 +30,7 @@ class RedditFilterTypes(Enum):
     POSTS = "posts"
     MEDIA_SOURCE = "media_source"
     MEDIA_SOURCE_HISTORY = "media_source_history"
+    ADVANCED_SENTIMENT_ANALYSIS = "sentiment_analysis"
 
 
 class RedditUserUpsertStatus(Enum):
