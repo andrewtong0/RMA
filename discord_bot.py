@@ -418,19 +418,12 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
             reposts = db_collection_operations.get_reposts_of_post(new_post["_id"])
             if len(reposts) == 0:
                 continue
-            # TODO: Convert to a nicer embed
-            reposts_string = ""
-            for repost in reposts:
-                reposts_string += repost["permalink"] + "\n"
-            repost_message = "**POTENTIAL REPOST FOUND**\n" + "User: " +\
-                                  constants.RedditEmbedConsts.username_link.value + new_post["author"]["username"] + "\n" +\
-                                  "Suspected Post: " + new_post["permalink"] + "\n" +\
-                                  "Original Post(s): \n" + reposts_string
+            repost_embed = wrangler.construct_repost_embed(new_post, reposts)
             if environment_variables.REPOST_SETTINGS["DELETE_REPOSTS"]:
                 await praw_operations.action_on_post(new_post["_id"], constants.RedditOperationTypes.REMOVE.value, new_post["post_type"])
             for channel in repost_channels:
                 if channel is not None:
-                    await channel.send(content=repost_message)
+                    await channel.send(embed=repost_embed)
 
     posts_and_matches = await filters.apply_all_filters(db_filters, new_posts, constants.Platforms.REDDIT.value)
     for post_and_matches in posts_and_matches:

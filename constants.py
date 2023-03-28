@@ -133,6 +133,7 @@ class RedditEmbedConsts(Enum):
     approve_colour = 0x40e300
     reject_colour = 0xfc0000
     report_colour = 0xfffb00
+    repost_colour = 0xc794d1
     permalink_domain = "https://reddit.com"
     username_link = "https://reddit.com/u/"
     removed_thumbnail = "https://cdn4.iconfinder.com/data/icons/social-messaging-ui-coloricon-1/21/52-512.png"
@@ -163,6 +164,8 @@ class StringConstants(Enum):
     EMBED_FIELD_TRUNCATE_NUMBER = 6  # For above string, we reserve this many characters for the count of # posts removed (e.g. 6 = a 6 digit number)
     SECONDARY_REVIEW_TITLE_PREFIX = "Secondary review requested"
     SECONDARY_REVIEW_REQUESTED_BY_SEPARATOR = "by"
+    REPOST_CURRENT_POST_TITLE = "Potential Repost"
+    REPOST_PREVIOUS_POST_TITLE = "Previous Post"
 
 
 class RedditDiscordChannelTypes(Enum):

@@ -459,6 +459,52 @@ async def construct_approve_or_reject_review_embed(reviewed_post_embed, review_r
     return embed
 
 
+def construct_repost_embed(potential_repost, previous_posts):
+    embed_title = "Potential Repost Found"
+    repost_permalink = potential_repost["permalink"]
+    embed = discord.Embed(
+        title=embed_title,
+        colour=discord.Colour(constants.RedditEmbedConsts.repost_colour.value),
+        url=generated_reddit_permalink(repost_permalink)
+    )
+
+    author_name = potential_repost["author"]["username"]
+    embed_username_link = generate_reddit_user_link(author_name)
+    author_icon = potential_repost["author"]["author_icon"]
+
+    embed.set_author(name=author_name,
+                     url=embed_username_link,
+                     icon_url=author_icon)
+
+    embed.add_field(
+        name=constants.StringConstants.REPOST_CURRENT_POST_TITLE.value,
+        value=repost_permalink,
+        inline=False
+    )
+
+    # TODO: This is identical to loop in construct_user_report_embed, consider combining into helper
+    for post in previous_posts:
+        is_submission_post = is_post_submission(post)
+        embed.add_field(
+            name=constants.StringConstants.REPOST_PREVIOUS_POST_TITLE.value,
+            value=post["title"] if is_submission_post else post["content"],
+            inline=True
+        )
+        embed.add_field(
+            name="Permalink" + " (ID: " + post["_id"] + ")",
+            value=post["permalink"],
+            inline=True
+        )
+        embed.add_field(
+            name=constants.StringConstants.TIMESTAMP_TITLE.value,
+            value=str(post_utc_to_timestamp(post)),
+            inline=True
+        )
+
+    embed_and_info = truncate_embed(embed)
+    return embed_and_info
+
+
 # TODO: Make this not split words into two, escape characters (or perhaps just make it a code block)
 # Return array of truncated strings to bypass character limit as several messages sent as code blocks
 def truncate_message_into_code_blocks(message):
