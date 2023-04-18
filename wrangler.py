@@ -465,7 +465,7 @@ def construct_repost_embed(potential_repost, previous_posts):
     embed = discord.Embed(
         title=embed_title,
         colour=discord.Colour(constants.RedditEmbedConsts.repost_colour.value),
-        url=generated_reddit_permalink(repost_permalink)
+        url=repost_permalink
     )
 
     author_name = potential_repost["author"]["username"]
@@ -482,8 +482,11 @@ def construct_repost_embed(potential_repost, previous_posts):
         inline=False
     )
 
-    # TODO: This is identical to loop in construct_user_report_embed, consider combining into helper
-    for post in previous_posts:
+    # Limit to 5 most recent posts
+    # TODO: Verify this is in chronological order from most recent
+    # TODO: There's a chance this exceeds char limit, truncate_embed may need to be used but was previously not interacting well
+    num_reposts = 5
+    for post in list(reversed(previous_posts[-num_reposts:])):
         is_submission_post = is_post_submission(post)
         embed.add_field(
             name=constants.StringConstants.REPOST_PREVIOUS_POST_TITLE.value,
@@ -500,9 +503,13 @@ def construct_repost_embed(potential_repost, previous_posts):
             value=str(post_utc_to_timestamp(post)),
             inline=True
         )
-
-    embed_and_info = truncate_embed(embed)
-    return embed_and_info
+    if len(previous_posts) > num_reposts:
+        embed.add_field(
+            name="Truncated Reposts",
+            value="Showing " + str(num_reposts) + " out of " + str(len(previous_posts)) + " potential reposts",
+            inline=False
+        )
+    return embed
 
 
 # TODO: Make this not split words into two, escape characters (or perhaps just make it a code block)
