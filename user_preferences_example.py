@@ -56,6 +56,7 @@ RepostChannelIds = []
 # Developer channels
 # If you do not need a second set of subreddits and channels for debugging purposes, you can leave this
 DevSubredditsAndChannels = []
+DevRepostChannelIds = []
 
 # Filters listed here will also sync content to the automoderator wiki
 # e.g. When using a blacklist/shadowban filter, users can be added via the bot, which will also be synced to the wiki

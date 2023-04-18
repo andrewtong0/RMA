@@ -4,3 +4,4 @@ __pycache__
 environment_variables.py
 user_preferences.py
 discord.log
+/models

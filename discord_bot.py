@@ -409,7 +409,8 @@ async def get_new_reddit_posts(num_posts, subreddit_and_channels):
     # Check if post is a repost
     repost_channels = []
     # TODO: Add multi-subreddit support (send to associated channel for subreddit), consider updating classes.py
-    for repost_channel in user_preferences.RepostChannelIds:
+    repost_channel_ids_to_use = user_preferences.DevRepostChannelIds if environment_variables.DEV_MODE else user_preferences.RepostChannelIds
+    for repost_channel in repost_channel_ids_to_use:
         repost_channels.append(get_channel_from_id(repost_channel))
     if environment_variables.REPOST_SETTINGS["SCAN_FOR_REPOSTS"]:
         for new_post in new_posts:
